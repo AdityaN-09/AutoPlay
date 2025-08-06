@@ -12,9 +12,12 @@ app.listen(PORT, () => {
   console.log(`Server is live at http://localhost:${PORT}`);
 });
 
-
 const querystring = require('querystring');
 const axios = require('axios');
+
+// ✅ Global variables to hold tokens (in-memory for now)
+let access_token = null;
+let refresh_token = null;
 
 const client_id = process.env.SPOTIFY_CLIENT_ID;
 const client_secret = process.env.SPOTIFY_CLIENT_SECRET;
@@ -53,14 +56,49 @@ app.get('/callback', async (req, res) => {
       }
     });
 
-    const { access_token, refresh_token } = response.data;
+    // ✅ Save tokens in global variables
+    access_token = response.data.access_token;
+    refresh_token = response.data.refresh_token;
 
-    // TEMP: display tokens
     res.send(`Access Token: ${access_token} <br><br> Refresh Token: ${refresh_token}`);
-
-    // LATER: store and use these to call Spotify APIs
-
   } catch (error) {
     res.send('Error getting tokens: ' + error.message);
+  }
+});
+
+// 3. RECENTLY PLAYED ROUTE
+app.get('/recent', async (req, res) => {
+  try {
+    if (!refresh_token) {
+      return res.status(401).send('No refresh token found. Please login via /login.');
+    }
+
+    // ✅ Refresh access token using refresh_token
+    const tokenResponse = await axios({
+      method: 'post',
+      url: 'https://accounts.spotify.com/api/token',
+      data: querystring.stringify({
+        grant_type: 'refresh_token',
+        refresh_token: refresh_token
+      }),
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': 'Basic ' + Buffer.from(client_id + ':' + client_secret).toString('base64')
+      }
+    });
+
+    access_token = tokenResponse.data.access_token;
+
+    // ✅ Use refreshed access token to fetch recently played tracks
+    const recentTracksResponse = await axios.get('https://api.spotify.com/v1/me/player/recently-played?limit=10', {
+      headers: {
+        'Authorization': 'Bearer ' + access_token
+      }
+    });
+
+    res.json(recentTracksResponse.data);
+  } catch (error) {
+    console.error('Error fetching recent tracks:', error.response?.data || error.message);
+    res.status(500).send('Failed to fetch recently played tracks.');
   }
 });
