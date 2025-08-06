@@ -51,6 +51,8 @@ async function addToPlaylist(trackUri, access_token) {
       { uris: [trackUri] },
       { headers: { Authorization: `Bearer ${access_token}` } }
     );
+    console.log('📤 Trying to add to playlist:', trackUri);
+
     console.log(`✅ Added to playlist: ${trackUri}`);
   } catch (err) {
     console.error(`❌ Error adding to playlist: ${err.response?.data?.error?.message}`);
@@ -60,12 +62,21 @@ async function addToPlaylist(trackUri, access_token) {
 // Update play count and check if threshold passed
 async function handleTrack(track, access_token) {
   const playCounts = loadPlayCounts();
-  const trackId = track.track.id;
-  const trackUri = track.track.uri;
 
-  if (!trackId) return;
+  const trackData = track.track || track;  // fallback
 
-  // If not in count file, add it
+  if (!trackData || !trackData.id || !trackData.uri) {
+    console.warn('⚠️ Skipping invalid track object:', JSON.stringify(track));
+    return;
+  }
+
+  const trackId = trackData.id;
+  const trackUri = `spotify:track:${trackId}`; // safer format
+
+  console.log(`🎵 Processing track: ${trackData.name} by ${trackData.artists?.map(a => a.name).join(', ')}`);
+  console.log(`📤 URI to add: ${trackUri}`);
+
+  // Update play counts
   if (!playCounts[trackId]) {
     playCounts[trackId] = { count: 1, lastPlayed: Date.now() };
   } else {
@@ -73,7 +84,7 @@ async function handleTrack(track, access_token) {
     playCounts[trackId].lastPlayed = Date.now();
   }
 
-  // If played more than 5 times, add to playlist
+  // Threshold check
   if (playCounts[trackId].count === 5) {
     await addToPlaylist(trackUri, access_token);
   }
@@ -81,6 +92,8 @@ async function handleTrack(track, access_token) {
   savePlayCounts(playCounts);
 }
 
+
 module.exports = {
-  handleTrack
+  handleTrack,
+  logPlayedTrack
 };

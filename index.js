@@ -116,10 +116,16 @@ app.get('/recent', async (req, res) => {
       return res.status(204).send('No recent tracks found. Play some music and try again.');
     }
 
+    // Import logPlayedTrack from utils/spotify.js
+    const { logPlayedTrack } = require('./utils/spotify');
+    
     // Process all tracks
-    await Promise.all(tracks.map(item => handleTrack(item, access_token)));
+     for (const item of tracks) {
+      logPlayedTrack(item);
+      await handleTrack(item, access_token);
+    }
 
-    return res.json(tracks);
+    res.send(`✅ Processed ${tracks.length} recently played tracks.`);
 
   } catch (err) {
     console.error('Error in /recent:', err.response?.data || err.message);
