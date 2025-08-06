@@ -5,6 +5,29 @@ require('dotenv').config();
 
 const playCountPath = path.join(__dirname, '../data/playCounts.json');
 
+const playedTracksPath = path.join(__dirname, '../data/playedTracks.json');
+
+function logPlayedTrack(track) {
+  const entry = {
+    track_id: track.track.id,
+    track_name: track.track.name,
+    artist: track.track.artists.map(a => a.name).join(', '),
+    played_at: Date.now()
+  };
+
+  let history = [];
+
+  try {
+    history = JSON.parse(fs.readFileSync(playedTracksPath));
+  } catch (err) {
+    history = [];
+  }
+
+  history.push(entry);
+  fs.writeFileSync(playedTracksPath, JSON.stringify(history, null, 2));
+}
+
+
 // Load play count data
 function loadPlayCounts() {
   try {

@@ -1,5 +1,10 @@
+const { handleTrack } = require('./utils/spotify');
 const express = require('express');
 const app = express();
+const fs = require('fs');
+const tokens = JSON.parse(fs.readFileSync('tokens.json', 'utf8'));
+const path = require('path');
+
 require('dotenv').config();
 
 const PORT = process.env.PORT || 8888;
@@ -60,26 +65,34 @@ app.get('/callback', async (req, res) => {
     access_token = response.data.access_token;
     refresh_token = response.data.refresh_token;
 
-    res.send(`Access Token: ${access_token} <br><br> Refresh Token: ${refresh_token}`);
+    // ✅ Save tokens to tokens.json
+    const tokenPath = path.join(__dirname, 'tokens.json');
+    fs.writeFileSync(tokenPath, JSON.stringify({
+      access_token,
+      refresh_token
+    }, null, 2));
+
+    res.send('✅ Tokens saved to tokens.json. You can now call /recent.');
   } catch (error) {
-    res.send('Error getting tokens: ' + error.message);
+    console.error(error.response?.data || error.message);
+    res.status(500).send('Error getting tokens');
   }
 });
 
 // 3. RECENTLY PLAYED ROUTE
 app.get('/recent', async (req, res) => {
   try {
-    if (!refresh_token) {
-      return res.status(401).send('No refresh token found. Please login via /login.');
+    if (!tokens.refresh_token) {
+      return res.status(401).send('Refresh token not found in tokens.json. Please log in at /login.');
     }
 
-    // ✅ Refresh access token using refresh_token
+    // Refresh token
     const tokenResponse = await axios({
       method: 'post',
       url: 'https://accounts.spotify.com/api/token',
       data: querystring.stringify({
         grant_type: 'refresh_token',
-        refresh_token: refresh_token
+        refresh_token: tokens.refresh_token
       }),
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -89,16 +102,37 @@ app.get('/recent', async (req, res) => {
 
     access_token = tokenResponse.data.access_token;
 
-    // ✅ Use refreshed access token to fetch recently played tracks
-    const recentTracksResponse = await axios.get('https://api.spotify.com/v1/me/player/recently-played?limit=10', {
-      headers: {
-        'Authorization': 'Bearer ' + access_token
+    // Fetch recent tracks
+    const recentResponse = await axios.get(
+      'https://api.spotify.com/v1/me/player/recently-played?limit=10',
+      {
+        headers: { Authorization: `Bearer ${access_token}` }
       }
-    });
+    );
 
-    res.json(recentTracksResponse.data);
-  } catch (error) {
-    console.error('Error fetching recent tracks:', error.response?.data || error.message);
-    res.status(500).send('Failed to fetch recently played tracks.');
+    const tracks = recentResponse.data.items;
+
+    if (!tracks || tracks.length === 0) {
+      return res.status(204).send('No recent tracks found. Play some music and try again.');
+    }
+
+    // Process all tracks
+    await Promise.all(tracks.map(item => handleTrack(item, access_token)));
+
+    return res.json(tracks);
+
+  } catch (err) {
+    console.error('Error in /recent:', err.response?.data || err.message);
+    return res.status(500).send('Failed to fetch recently played tracks.');
   }
+});
+
+
+
+// filter working or not
+const { filterFrequentTracks } = require('./utils/filterTracks');
+
+app.get('/frequent', (req, res) => {
+  const frequent = filterFrequentTracks(); // default: >5 in 3 days
+  res.json(frequent);
 });
