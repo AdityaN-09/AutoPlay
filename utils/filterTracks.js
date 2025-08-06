@@ -1,40 +1,40 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_FILE = path.join(__dirname, '..', 'data', 'playedTracks.json');
+const PLAY_COUNTS_FILE = path.join(__dirname, '..', 'data', 'playCounts.json');
+const PLAYED_TRACKS_FILE = path.join(__dirname, '..', 'data', 'playedTracks.json');
 
 function filterFrequentTracks(threshold = 5, days = 3) {
-  if (!fs.existsSync(DATA_FILE)) return [];
+  if (!fs.existsSync(PLAY_COUNTS_FILE) || !fs.existsSync(PLAYED_TRACKS_FILE)) return [];
 
-  const rawData = fs.readFileSync(DATA_FILE, 'utf8');
-  const allPlays = JSON.parse(rawData);
+  const countsData = JSON.parse(fs.readFileSync(PLAY_COUNTS_FILE, 'utf8'));
+  const playedData = JSON.parse(fs.readFileSync(PLAYED_TRACKS_FILE, 'utf8'));
 
   const cutoffTime = Date.now() - (days * 24 * 60 * 60 * 1000);
+  const trackDetailsMap = {};
 
-  const trackCountMap = {};
-
-  allPlays.forEach(play => {
-    if (play.played_at > cutoffTime) {
-      if (!trackCountMap[play.track_id]) {
-        trackCountMap[play.track_id] = {
-          count: 1,
-          track_name: play.track_name,
-          artist: play.artist
-        };
-      } else {
-        trackCountMap[play.track_id].count++;
-      }
+  // Build a reference map of track details (name, artist)
+  playedData.forEach(play => {
+    if (!trackDetailsMap[play.track_id]) {
+      trackDetailsMap[play.track_id] = {
+        track_name: play.track_name,
+        artist: play.artist
+      };
     }
   });
 
-  const frequentTracks = Object.entries(trackCountMap)
-    .filter(([_, info]) => info.count > threshold)
-    .map(([track_id, info]) => ({
-      track_id,
-      track_name: info.track_name,
-      artist: info.artist,
-      count: info.count
-    }));
+  const frequentTracks = [];
+
+  for (const [track_id, info] of Object.entries(countsData)) {
+    if (info.count > threshold && info.lastPlayed > cutoffTime) {
+      frequentTracks.push({
+        track_id,
+        track_name: trackDetailsMap[track_id]?.track_name || 'Unknown',
+        artist: trackDetailsMap[track_id]?.artist || 'Unknown',
+        count: info.count
+      });
+    }
+  }
 
   return frequentTracks;
 }
