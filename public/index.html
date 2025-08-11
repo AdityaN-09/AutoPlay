@@ -206,43 +206,59 @@
             border-radius: 5px;
             margin-bottom: 15px;
         }
+
+        .section-title {
+            font-size: 1.8rem;
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+
+        .empty-state .icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎵 AutoPlay Dashboard</h1>
-            <p>Your automated Spotify playlist manager</p>
+            <h1>🎵 AutoPlay - Music Tracker</h1>
+            <p>Track your listening habits and discover your favorite songs</p>
         </div>
 
         <div class="content">
             <!-- Controls -->
             <div class="card">
-                <h3>🔄 Scheduler Controls</h3>
+                <h3>🔄 Data Controls</h3>
                 <div class="controls">
-                    <button class="btn btn-primary" onclick="startScheduler()">Start Scheduler</button>
-                    <button class="btn btn-danger" onclick="stopScheduler()">Stop Scheduler</button>
-                    <button class="btn btn-secondary" onclick="runNow()">Run Now</button>
+                    <button class="btn btn-primary" onclick="startScheduler()">Start Auto-Tracking</button>
+                    <button class="btn btn-danger" onclick="stopScheduler()">Stop Auto-Tracking</button>
+                    <button class="btn btn-secondary" onclick="runNow()">Fetch Recent Tracks</button>
                     <button class="btn btn-secondary" onclick="refreshData()">Refresh Data</button>
-                </div>
-                <div class="controls">
-                    <button class="btn btn-primary" onclick="runMoodAutoAdd()">🎨 Mood Auto-Add</button>
-                    <button class="btn btn-secondary" onclick="refreshMoodData()">Refresh Mood Data</button>
                 </div>
                 <div id="schedulerStatus">
                     <span class="status-indicator status-stopped"></span>
-                    <span>Scheduler Status: Loading...</span>
+                    <span>Auto-Tracking Status: Loading...</span>
                 </div>
             </div>
 
             <!-- Statistics -->
             <div class="grid">
                 <div class="card">
-                    <h3>📊 Overview</h3>
+                    <h3>📊 Listening Overview</h3>
                     <div class="stats">
                         <div class="stat">
                             <div class="stat-number" id="totalTracks">-</div>
-                            <div class="stat-label">Total Tracks</div>
+                            <div class="stat-label">Unique Tracks</div>
                         </div>
                         <div class="stat">
                             <div class="stat-number" id="totalPlays">-</div>
@@ -254,27 +270,21 @@
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <div class="card">
-                    <h3>🎯 Frequent Tracks (Ready for Playlist)</h3>
-                    <div id="frequentTracksList" class="track-list">
-                        <div class="loading">Loading...</div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <h3>🎨 Mood-Based Playlists</h3>
-                    <div id="moodPlaylistsList" class="track-list">
-                        <div class="loading">Loading...</div>
-                    </div>
+            <!-- Frequent Tracks -->
+            <div class="card">
+                <h3 class="section-title">🎯 Your Most Played Tracks</h3>
+                <div id="frequentTracksList" class="track-list">
+                    <div class="loading">Loading your favorite tracks...</div>
                 </div>
             </div>
 
             <!-- Top Tracks -->
             <div class="card">
-                <h3>🏆 Top Played Tracks</h3>
+                <h3 class="section-title">🏆 All Time Top Tracks</h3>
                 <div id="topTracksList" class="track-list">
-                    <div class="loading">Loading...</div>
+                    <div class="loading">Loading your top tracks...</div>
                 </div>
             </div>
         </div>
@@ -304,13 +314,13 @@
                     indicator.className = 'status-indicator status-running';
                     statusElement.innerHTML = `
                         <span class="status-indicator status-running"></span>
-                        <span>Scheduler Status: Running</span>
+                        <span>Auto-Tracking Status: Running</span>
                     `;
                 } else {
                     indicator.className = 'status-indicator status-stopped';
                     statusElement.innerHTML = `
                         <span class="status-indicator status-stopped"></span>
-                        <span>Scheduler Status: Stopped</span>
+                        <span>Auto-Tracking Status: Stopped</span>
                     `;
                 }
             } catch (error) {
@@ -330,7 +340,13 @@
                 // Update frequent tracks
                 const frequentList = document.getElementById('frequentTracksList');
                 if (analytics.frequentTracks.length === 0) {
-                    frequentList.innerHTML = '<div class="loading">No frequent tracks found</div>';
+                    frequentList.innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">🎵</div>
+                            <div>No frequent tracks found yet</div>
+                            <div style="font-size: 0.9rem; margin-top: 10px;">Start listening to see your favorites here!</div>
+                        </div>
+                    `;
                 } else {
                     frequentList.innerHTML = analytics.frequentTracks.map(track => `
                         <div class="track-item">
@@ -346,7 +362,13 @@
                 // Update top tracks
                 const topList = document.getElementById('topTracksList');
                 if (analytics.topTracks.length === 0) {
-                    topList.innerHTML = '<div class="loading">No tracks found</div>';
+                    topList.innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">🎵</div>
+                            <div>No tracks found yet</div>
+                            <div style="font-size: 0.9rem; margin-top: 10px;">Start listening to build your music history!</div>
+                        </div>
+                    `;
                 } else {
                     topList.innerHTML = analytics.topTracks.map(track => `
                         <div class="track-item">
@@ -370,9 +392,9 @@
             try {
                 await fetch(`${API_BASE}/scheduler/start`);
                 await updateSchedulerStatus();
-                showMessage('Scheduler started successfully!', 'success');
+                showMessage('Auto-tracking started successfully!', 'success');
             } catch (error) {
-                showMessage('Failed to start scheduler', 'error');
+                showMessage('Failed to start auto-tracking', 'error');
             }
         }
 
@@ -380,19 +402,19 @@
             try {
                 await fetch(`${API_BASE}/scheduler/stop`);
                 await updateSchedulerStatus();
-                showMessage('Scheduler stopped successfully!', 'success');
+                showMessage('Auto-tracking stopped successfully!', 'success');
             } catch (error) {
-                showMessage('Failed to stop scheduler', 'error');
+                showMessage('Failed to stop auto-tracking', 'error');
             }
         }
 
         async function runNow() {
             try {
                 await fetch(`${API_BASE}/scheduler/run-now`);
-                showMessage('Manual run completed!', 'success');
+                showMessage('Recent tracks fetched successfully!', 'success');
                 setTimeout(updateAnalytics, 2000); // Refresh data after 2 seconds
             } catch (error) {
-                showMessage('Failed to run manual task', 'error');
+                showMessage('Failed to fetch recent tracks', 'error');
             }
         }
 
@@ -402,44 +424,7 @@
             showMessage('Data refreshed!', 'success');
         }
 
-        async function updateMoodData() {
-            try {
-                const moodData = await fetchData('/mood-analytics');
-                const moodList = document.getElementById('moodPlaylistsList');
-                
-                if (moodData.moodPlaylists && Object.keys(moodData.moodPlaylists).length > 0) {
-                    moodList.innerHTML = Object.entries(moodData.moodPlaylists).map(([mood, playlist]) => `
-                        <div class="track-item">
-                            <div class="track-info">
-                                <div class="track-name">${playlist.name}</div>
-                                <div class="track-artist">${playlist.description}</div>
-                            </div>
-                            <div class="track-count">${playlist.trackCount} tracks</div>
-                        </div>
-                    `).join('');
-                } else {
-                    moodList.innerHTML = '<div class="loading">No mood playlists found</div>';
-                }
-            } catch (error) {
-                console.error('Error updating mood data:', error);
-                document.getElementById('moodPlaylistsList').innerHTML = '<div class="error">Error loading mood data</div>';
-            }
-        }
 
-        async function runMoodAutoAdd() {
-            try {
-                // Disabled in console-only mode
-                showMessage('Mood auto-add is disabled in this build.', 'info');
-                setTimeout(updateMoodData, 2000); // Refresh mood data after 2 seconds
-            } catch (error) {
-                showMessage('Mood auto-add is disabled in this build.', 'info');
-            }
-        }
-
-        async function refreshMoodData() {
-            await updateMoodData();
-            showMessage('Mood data refreshed!', 'success');
-        }
 
         function showMessage(message, type) {
             // Simple message display - you could enhance this with a proper toast system
@@ -450,11 +435,9 @@
         document.addEventListener('DOMContentLoaded', async () => {
             await updateSchedulerStatus();
             await updateAnalytics();
-            await updateMoodData();
             
             // Auto-refresh every 30 seconds
             setInterval(updateAnalytics, 30000);
-            setInterval(updateMoodData, 30000);
         });
     </script>
 </body>
