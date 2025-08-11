@@ -132,7 +132,7 @@ app.get('/frequent', (req, res) => {
 // 4. SHOW FREQUENT ROUTE - Display frequent tracks in console
 app.get('/show-frequent', async (req, res) => {
   try {
-    const { displayFrequentTracks } = require('./utils/showFrequent');
+    const { displayFrequentTracks } = require('./utils/displayFrequentTracks');
     displayFrequentTracks(5);
     res.send('Displayed frequent tracks in console');
   } catch (error) {
@@ -186,26 +186,8 @@ app.get('/analytics', (req, res) => {
   }
 });
 
-// 5b. MOOD ANALYTICS ROUTE - Get mood-based playlist statistics
-app.get('/mood-analytics', async (req, res) => {
-  try {
-    const { getAccessToken } = require('./utils/tokenManager');
-    const { MoodAutoAdd } = require('./utils/moodAutoAdd');
-    
-    const accessToken = await getAccessToken();
-    const moodAutoAdd = new MoodAutoAdd();
-    const moodStats = await moodAutoAdd.getMoodStats(accessToken);
-    
-    res.json({
-      moodPlaylists: moodStats,
-      totalMoodPlaylists: Object.keys(moodStats).length,
-      totalTracksInMoodPlaylists: Object.values(moodStats).reduce((sum, playlist) => sum + playlist.trackCount, 0)
-    });
-  } catch (error) {
-    console.error('Error getting mood analytics:', error);
-    res.status(500).send('Failed to get mood analytics.');
-  }
-});
+// 5b. MOOD ANALYTICS ROUTE - Removed as auto-add feature is not needed
+// This route was for mood-based playlist statistics, but we're focusing only on frequent tracks display
 
 // 6. SCHEDULER ROUTES
 const AutoPlayScheduler = require('./utils/scheduler');
