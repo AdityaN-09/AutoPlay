@@ -43,25 +43,12 @@ function savePlayCounts(playCounts) {
   fs.writeFileSync(playCountPath, JSON.stringify(playCounts, null, 2));
 }
 
-// Add track to playlist
-async function addToPlaylist(trackUri, access_token) {
-  try {
-    await axios.post(
-      `https://api.spotify.com/v1/playlists/${process.env.SPOTIFY_PLAYLIST_ID}/tracks`,
-      { uris: [trackUri] },
-      { headers: { Authorization: `Bearer ${access_token}` } }
-    );
-    console.log('📤 Trying to add to playlist:', trackUri);
-
-    console.log(`✅ Added to playlist: ${trackUri}`);
-  } catch (err) {
-    console.error(`❌ Error adding to playlist: ${err.response?.data?.error?.message}`);
-  }
-}
+// Playlist addition removed as part of console-only refactor
 
 // Update play count and check if threshold passed
 async function handleTrack(track, access_token) {
   const playCounts = loadPlayCounts();
+  // Mood-based auto-add disabled
 
   const trackData = track.track || track;  // fallback
 
@@ -71,10 +58,7 @@ async function handleTrack(track, access_token) {
   }
 
   const trackId = trackData.id;
-  const trackUri = `spotify:track:${trackId}`; // safer format
-
   console.log(`🎵 Processing track: ${trackData.name} by ${trackData.artists?.map(a => a.name).join(', ')}`);
-  console.log(`📤 URI to add: ${trackUri}`);
 
   // Update play counts
   if (!playCounts[trackId]) {
@@ -84,9 +68,9 @@ async function handleTrack(track, access_token) {
     playCounts[trackId].lastPlayed = Date.now();
   }
 
-  // Threshold check
+  // Threshold reached: log only; no playlist operations
   if (playCounts[trackId].count === 5) {
-    await addToPlaylist(trackUri, access_token);
+    console.log(`🎯 Track reached threshold (5 plays): ${trackData.name}`);
   }
 
   savePlayCounts(playCounts);

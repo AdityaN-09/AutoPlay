@@ -2,15 +2,18 @@ const { handleTrack } = require('./utils/spotify');
 const express = require('express');
 const app = express();
 const fs = require('fs');
-const tokens = JSON.parse(fs.readFileSync('tokens.json', 'utf8'));
 const path = require('path');
+const { getAccessToken } = require('./utils/tokenManager');
 
 require('dotenv').config();
 
 const PORT = process.env.PORT || 8888;
 
+// Serve static files from public directory
+app.use(express.static('public'));
+
 app.get('/', (req, res) => {
-  res.send('AutoPlay server is running!');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, () => {
@@ -82,25 +85,8 @@ app.get('/callback', async (req, res) => {
 // 3. RECENTLY PLAYED ROUTE
 app.get('/recent', async (req, res) => {
   try {
-    if (!tokens.refresh_token) {
-      return res.status(401).send('Refresh token not found in tokens.json. Please log in at /login.');
-    }
-
-    // Refresh token
-    const tokenResponse = await axios({
-      method: 'post',
-      url: 'https://accounts.spotify.com/api/token',
-      data: querystring.stringify({
-        grant_type: 'refresh_token',
-        refresh_token: tokens.refresh_token
-      }),
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': 'Basic ' + Buffer.from(client_id + ':' + client_secret).toString('base64')
-      }
-    });
-
-    access_token = tokenResponse.data.access_token;
+    // Use tokenManager to get fresh access token
+    const access_token = await getAccessToken();
 
     // Fetch recent tracks
     const recentResponse = await axios.get(
@@ -141,4 +127,110 @@ const { filterFrequentTracks } = require('./utils/filterTracks');
 app.get('/frequent', (req, res) => {
   const frequent = filterFrequentTracks(); // default: >5 in 3 days
   res.json(frequent);
+});
+
+// 4. SHOW FREQUENT ROUTE - Display frequent tracks in console
+app.get('/show-frequent', async (req, res) => {
+  try {
+    const { displayFrequentTracks } = require('./utils/showFrequent');
+    displayFrequentTracks(5);
+    res.send('Displayed frequent tracks in console');
+  } catch (error) {
+    console.error('Error in show-frequent:', error);
+    res.status(500).send('Failed to display frequent tracks.');
+  }
+});
+
+// 4b. Mood auto-add disabled as part of refactor to console-only output
+// app.get('/mood-auto-add', async (req, res) => {
+//   try {
+//     const { MoodAutoAdd } = require('./utils/moodAutoAdd');
+//     const moodAutoAdd = new MoodAutoAdd();
+//     await moodAutoAdd.run();
+//     res.send('✅ Mood-based auto-add process completed. Check console for details.');
+//   } catch (error) {
+//     console.error('Error in mood-auto-add:', error);
+//     res.status(500).send('Failed to run mood-based auto-add process.');
+//   }
+// });
+
+// 5. ANALYTICS ROUTE - Get play statistics
+app.get('/analytics', (req, res) => {
+  try {
+    const frequent = filterFrequentTracks();
+    const fs = require('fs');
+    const playCountsPath = path.join(__dirname, 'data/playCounts.json');
+    const playedTracksPath = path.join(__dirname, 'data/playedTracks.json');
+    
+    const playCounts = JSON.parse(fs.readFileSync(playCountsPath, 'utf8'));
+    const playedTracks = JSON.parse(fs.readFileSync(playedTracksPath, 'utf8'));
+    
+    const analytics = {
+      totalTracksPlayed: Object.keys(playCounts).length,
+      totalPlayEvents: playedTracks.length,
+      frequentTracks: frequent,
+      topTracks: Object.entries(playCounts)
+        .sort(([,a], [,b]) => b.count - a.count)
+        .slice(0, 10)
+        .map(([id, data]) => ({
+          track_id: id,
+          count: data.count,
+          lastPlayed: data.lastPlayed
+        }))
+    };
+    
+    res.json(analytics);
+  } catch (error) {
+    console.error('Error getting analytics:', error);
+    res.status(500).send('Failed to get analytics.');
+  }
+});
+
+// 5b. MOOD ANALYTICS ROUTE - Get mood-based playlist statistics
+app.get('/mood-analytics', async (req, res) => {
+  try {
+    const { getAccessToken } = require('./utils/tokenManager');
+    const { MoodAutoAdd } = require('./utils/moodAutoAdd');
+    
+    const accessToken = await getAccessToken();
+    const moodAutoAdd = new MoodAutoAdd();
+    const moodStats = await moodAutoAdd.getMoodStats(accessToken);
+    
+    res.json({
+      moodPlaylists: moodStats,
+      totalMoodPlaylists: Object.keys(moodStats).length,
+      totalTracksInMoodPlaylists: Object.values(moodStats).reduce((sum, playlist) => sum + playlist.trackCount, 0)
+    });
+  } catch (error) {
+    console.error('Error getting mood analytics:', error);
+    res.status(500).send('Failed to get mood analytics.');
+  }
+});
+
+// 6. SCHEDULER ROUTES
+const AutoPlayScheduler = require('./utils/scheduler');
+const scheduler = new AutoPlayScheduler();
+
+app.get('/scheduler/start', (req, res) => {
+  const interval = parseInt(req.query.interval) || 30; // default 30 minutes
+  scheduler.start(interval);
+  res.send(`✅ Scheduler started (runs every ${interval} minutes)`);
+});
+
+app.get('/scheduler/stop', (req, res) => {
+  scheduler.stop();
+  res.send('⏹️ Scheduler stopped');
+});
+
+app.get('/scheduler/status', (req, res) => {
+  res.json(scheduler.getStatus());
+});
+
+app.get('/scheduler/run-now', async (req, res) => {
+  try {
+    await scheduler.fetchAndProcessRecentTracks();
+    res.send('✅ Manual run completed');
+  } catch (error) {
+    res.status(500).send('Failed to run manual task');
+  }
 });

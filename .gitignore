@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Environment and secrets
+.env
+tokens.json
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+coverage/
+
+# Runtime data (keep out of VCS)
+data/*.json
+!data/playlistInfo.json
+
