@@ -226,6 +226,105 @@
             margin-bottom: 15px;
             opacity: 0.5;
         }
+
+        /* Currently Playing Styles */
+        .now-playing {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .now-playing.playing {
+            background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
+            color: white;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+
+        .now-playing.not-playing {
+            background: #f8f9fa;
+            color: #666;
+            border-radius: 10px;
+            margin: 10px 0;
+            padding: 30px 20px;
+        }
+
+        .album-art {
+            width: 120px;
+            height: 120px;
+            border-radius: 10px;
+            margin: 0 auto 15px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            object-fit: cover;
+        }
+
+        .track-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            line-height: 1.3;
+        }
+
+        .track-artist {
+            font-size: 1rem;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+
+        .track-album {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-bottom: 15px;
+        }
+
+        .progress-container {
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            height: 8px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            background: white;
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+
+        .time-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        .live-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #ff6b6b;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .no-track {
+            text-align: center;
+            padding: 30px 20px;
+        }
+
+        .no-track .icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            opacity: 0.6;
+        }
     </style>
 </head>
 <body>
@@ -268,6 +367,14 @@
                             <div class="stat-number" id="frequentTracks">-</div>
                             <div class="stat-label">Frequent Tracks</div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Currently Playing Card -->
+                <div class="card" id="currentlyPlayingCard">
+                    <h3>🎵 Now Playing</h3>
+                    <div id="currentlyPlayingContent">
+                        <div class="loading">Loading current track...</div>
                     </div>
                 </div>
             </div>
@@ -326,6 +433,71 @@
             } catch (error) {
                 console.error('Error updating scheduler status:', error);
             }
+        }
+
+        async function updateCurrentlyPlaying() {
+            try {
+                const currentTrack = await fetchData('/currently-playing');
+                const contentElement = document.getElementById('currentlyPlayingContent');
+                
+                if (currentTrack.isPlaying) {
+                    const track = currentTrack.track;
+                    const progressPercent = track.progressPercent || 0;
+                    
+                    contentElement.innerHTML = `
+                        <div class="now-playing playing">
+                            <img src="${track.albumArt || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCIgdmlld0JveD0iMCAwIDEyMCAxMjAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iMTIwIiBmaWxsPSIjZmZmZmZmIi8+CjxwYXRoIGQ9Ik02MCAzMEM2MCAyNi44NTg2IDYyLjg1ODYgMjQgNjYgMjRIMTQwQzE0My4xNDIgMjQgMTQ2IDI2Ljg1ODYgMTQ2IDMwVjkwQzE0NiA5My4xNDE0IDE0My4xNDIgOTYgMTQwIDk2SDY2QzYyLjg1ODYgOTYgNjAgOTMuMTQxNCA2MCA5MFYzMFoiIGZpbGw9IiMxZGI5NTQiLz4KPHBhdGggZD0iTTYwIDQwQzYwIDM2Ljg1ODYgNjIuODU4NiAzNCA2NiAzNEgxMDBDMTAzLjE0MiAzNCAxMDYgMzYuODU4NiAxMDYgNDBWNzBDMTA2IDczLjE0MTQgMTAzLjE0MiA3NiAxMDAgNzZINjZDNjIuODU4NiA3NiA2MCA3My4xNDE0IDYwIDcwVjQwWiIgZmlsbD0iIzFlZDc2MCIvPgo8L3N2Zz4K'}" alt="Album Art" class="album-art">
+                            <div class="track-title">${track.name}</div>
+                            <div class="track-artist">${track.artist}</div>
+                            <div class="track-album">${track.album}</div>
+                            <div class="progress-container">
+                                <div class="progress-bar" style="width: ${progressPercent}%"></div>
+                            </div>
+                            <div class="time-info">
+                                <span>${formatTime(track.progress)}</span>
+                                <span>${formatTime(track.duration)}</span>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    contentElement.innerHTML = `
+                        <div class="now-playing not-playing">
+                            <div class="no-track">
+                                <div class="icon">🎵</div>
+                                <div>${currentTrack.message || 'No track currently playing'}</div>
+                                <div style="font-size: 0.9rem; margin-top: 10px;">Start playing music on Spotify to see it here!</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error updating currently playing:', error);
+                
+                // Check if it's an authentication error
+                if (error.error === 'Authentication required') {
+                    contentElement.innerHTML = `
+                        <div class="now-playing not-playing">
+                            <div class="no-track">
+                                <div class="icon">🔐</div>
+                                <div>Authentication Required</div>
+                                <div style="font-size: 0.9rem; margin-top: 10px;">Your Spotify session has expired</div>
+                                <button class="btn btn-primary" style="margin-top: 15px;" onclick="window.location.href='/login'">
+                                    🔑 Re-authenticate with Spotify
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    contentElement.innerHTML = '<div class="error">Error loading current track</div>';
+                }
+            }
+        }
+
+        function formatTime(ms) {
+            if (!ms) return '0:00';
+            const minutes = Math.floor(ms / 60000);
+            const seconds = Math.floor((ms % 60000) / 1000);
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
         }
 
         async function updateAnalytics() {
@@ -421,6 +593,7 @@
         async function refreshData() {
             await updateAnalytics();
             await updateSchedulerStatus();
+            await updateCurrentlyPlaying();
             showMessage('Data refreshed!', 'success');
         }
 
@@ -435,9 +608,13 @@
         document.addEventListener('DOMContentLoaded', async () => {
             await updateSchedulerStatus();
             await updateAnalytics();
+            await updateCurrentlyPlaying();
             
             // Auto-refresh every 30 seconds
             setInterval(updateAnalytics, 30000);
+            
+            // Auto-refresh currently playing every 5 seconds for live updates
+            setInterval(updateCurrentlyPlaying, 5000);
         });
     </script>
 </body>
