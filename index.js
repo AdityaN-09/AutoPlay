@@ -33,7 +33,7 @@ const redirect_uri = process.env.REDIRECT_URI;
 
 // 1. LOGIN ROUTE
 app.get('/login', (req, res) => {
-  const scope = 'user-top-read playlist-modify-public playlist-modify-private user-read-currently-playing user-read-playback-state';
+  const scope = 'user-top-read playlist-modify-public playlist-modify-private user-read-currently-playing user-read-playback-state user-read-recently-played';
   const auth_url = 'https://accounts.spotify.com/authorize?' +
     querystring.stringify({
       response_type: 'code',
@@ -148,6 +148,52 @@ app.get('/currently-playing', async (req, res) => {
       error: 'Failed to fetch currently playing track',
       message: err.message
     });
+  }
+});
+
+// Reset and refresh track data endpoint
+app.get('/reset-tracks', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const playCountsPath = path.join(__dirname, 'data/playCounts.json');
+    const playedTracksPath = path.join(__dirname, 'data/playedTracks.json');
+    
+    // Clear old data files
+    if (fs.existsSync(playCountsPath)) {
+      fs.unlinkSync(playCountsPath);
+      console.log('🗑️ Cleared old play counts');
+    }
+    if (fs.existsSync(playedTracksPath)) {
+      fs.unlinkSync(playedTracksPath);
+      console.log('🗑️ Cleared old played tracks');
+    }
+    
+    // Re-fetch recent tracks with proper names
+    const access_token = await getAccessToken();
+    const { logPlayedTrack, handleTrack } = require('./utils/spotify');
+    
+    const recentResponse = await axios.get(
+      'https://api.spotify.com/v1/me/player/recently-played?limit=50',
+      {
+        headers: { Authorization: `Bearer ${access_token}` }
+      }
+    );
+
+    const tracks = recentResponse.data.items;
+    
+    if (tracks && tracks.length > 0) {
+      for (const item of tracks) {
+        logPlayedTrack(item);
+        await handleTrack(item, access_token);
+      }
+      console.log(`✅ Re-processed ${tracks.length} tracks with proper names`);
+    }
+    
+    res.send(`✅ Track data reset and refreshed! Processed ${tracks?.length || 0} tracks with proper names.`);
+    
+  } catch (error) {
+    console.error('Error resetting tracks:', error);
+    res.status(500).send('Failed to reset track data');
   }
 });
 

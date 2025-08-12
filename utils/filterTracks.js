@@ -4,7 +4,7 @@ const path = require('path');
 const PLAY_COUNTS_FILE = path.join(__dirname, '..', 'data', 'playCounts.json');
 const PLAYED_TRACKS_FILE = path.join(__dirname, '..', 'data', 'playedTracks.json');
 
-function filterFrequentTracks(threshold = 5, days = 3) {
+function filterFrequentTracks(threshold = 3, days = 30) {
   if (!fs.existsSync(PLAY_COUNTS_FILE) || !fs.existsSync(PLAYED_TRACKS_FILE)) return [];
 
   const countsData = JSON.parse(fs.readFileSync(PLAY_COUNTS_FILE, 'utf8'));
