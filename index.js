@@ -33,7 +33,7 @@ const redirect_uri = process.env.REDIRECT_URI;
 
 // 1. LOGIN ROUTE
 app.get('/login', (req, res) => {
-  const scope = 'user-top-read playlist-modify-public playlist-modify-private';
+  const scope = 'user-top-read playlist-modify-public playlist-modify-private user-read-currently-playing user-read-playback-state';
   const auth_url = 'https://accounts.spotify.com/authorize?' +
     querystring.stringify({
       response_type: 'code',
@@ -72,7 +72,8 @@ app.get('/callback', async (req, res) => {
     const tokenPath = path.join(__dirname, 'tokens.json');
     fs.writeFileSync(tokenPath, JSON.stringify({
       access_token,
-      refresh_token
+      refresh_token,
+      timestamp: Date.now()
     }, null, 2));
 
     res.send('✅ Tokens saved to tokens.json. You can now call /recent.');
@@ -119,7 +120,77 @@ app.get('/recent', async (req, res) => {
   }
 });
 
+// 3b. CURRENTLY PLAYING ROUTE
+app.get('/currently-playing', async (req, res) => {
+  try {
+    // Use tokenManager to get fresh access token
+    const access_token = await getAccessToken();
 
+    // Import getCurrentlyPlaying from utils/spotify.js
+    const { getCurrentlyPlaying } = require('./utils/spotify');
+    
+    const currentTrack = await getCurrentlyPlaying(access_token);
+    res.json(currentTrack);
+
+  } catch (err) {
+    console.error('Error in /currently-playing:', err.message);
+    
+    // Check if it's an authentication error
+    if (err.message.includes('authenticate') || err.message.includes('token')) {
+      return res.status(401).json({
+        error: 'Authentication required',
+        message: 'Please visit /login to authenticate with Spotify',
+        action: 'login'
+      });
+    }
+    
+    return res.status(500).json({
+      error: 'Failed to fetch currently playing track',
+      message: err.message
+    });
+  }
+});
+
+// Debug endpoint to check token and environment status
+app.get('/debug', (req, res) => {
+  try {
+    const fs = require('fs');
+    const tokenPath = path.join(__dirname, 'tokens.json');
+    
+    let tokenInfo = 'No tokens file found';
+    let envInfo = {
+      SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID ? 'Set' : 'Not set',
+      SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET ? 'Set' : 'Not set',
+      REDIRECT_URI: process.env.REDIRECT_URI ? 'Set' : 'Not set'
+    };
+    
+    if (fs.existsSync(tokenPath)) {
+      const tokens = JSON.parse(fs.readFileSync(tokenPath, 'utf8'));
+      const tokenAge = Date.now() - (tokens.timestamp || 0);
+      const tokenExpiry = 3600000; // 1 hour
+      
+      tokenInfo = {
+        hasAccessToken: !!tokens.access_token,
+        hasRefreshToken: !!tokens.refresh_token,
+        tokenAge: `${Math.round(tokenAge / 1000)} seconds`,
+        isExpired: tokenAge > tokenExpiry,
+        timestamp: tokens.timestamp ? new Date(tokens.timestamp).toISOString() : 'None'
+      };
+    }
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      environment: envInfo,
+      tokens: tokenInfo
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      error: 'Debug endpoint failed',
+      message: error.message
+    });
+  }
+});
 
 // filter working or not
 const { filterFrequentTracks } = require('./utils/filterTracks');

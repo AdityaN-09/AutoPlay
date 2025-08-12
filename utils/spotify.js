@@ -76,8 +76,53 @@ async function handleTrack(track, access_token) {
   savePlayCounts(playCounts);
 }
 
+// Get currently playing track from Spotify
+async function getCurrentlyPlaying(access_token) {
+  try {
+    const response = await axios.get(
+      'https://api.spotify.com/v1/me/player/currently-playing',
+      {
+        headers: { Authorization: `Bearer ${access_token}` }
+      }
+    );
+
+    if (response.data && response.data.is_playing && response.data.item) {
+      const track = response.data.item;
+      const progress = response.data.progress_ms;
+      const duration = track.duration_ms;
+      
+      return {
+        isPlaying: true,
+        track: {
+          id: track.id,
+          name: track.name,
+          artist: track.artists.map(a => a.name).join(', '),
+          album: track.album.name,
+          albumArt: track.album.images[0]?.url,
+          duration: duration,
+          progress: progress,
+          progressPercent: Math.round((progress / duration) * 100)
+        },
+        timestamp: Date.now()
+      };
+    } else {
+      return {
+        isPlaying: false,
+        message: 'No track currently playing'
+      };
+    }
+  } catch (error) {
+    console.error('Error fetching currently playing track:', error.response?.data || error.message);
+    return {
+      isPlaying: false,
+      error: 'Failed to fetch current playback'
+    };
+  }
+}
+
 
 module.exports = {
   handleTrack,
-  logPlayedTrack
+  logPlayedTrack,
+  getCurrentlyPlaying
 };
