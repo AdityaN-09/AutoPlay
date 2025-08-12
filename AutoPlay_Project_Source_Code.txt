@@ -1,0 +1,1925 @@
+AUTOPLAY PROJECT - COMPLETE SOURCE CODE
+==========================================
+
+This file contains all the source code for the AutoPlay Spotify music tracking application.
+
+FILE: package.json
+==================
+{
+  "name": "autoplay",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "axios": "^1.11.0",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0"
+  }
+}
+
+FILE: .gitignore
+================
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
+.grunt
+
+# Bower dependency directory (https://bower.io/)
+bower_components
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons (https://nodejs.org/api/addons.html)
+build/Release
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# TypeScript v1 declaration files
+typings/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache/
+lib/
+es/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+.env.test
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Gatsby files
+.cache
+public
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# Temporary folders
+tmp/
+temp/
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Thumbs.db
+ehthumbs.db
+
+FILE: nodemon.json
+==================
+{
+  "watch": ["*.js", "utils/*.js", "routes/*.js"],
+  "ext": "js,json"
+}
+
+FILE: testFilter.js
+==================
+const { filterFrequentTracks } = require('./utils/filterTracks');
+
+const frequent = filterFrequentTracks();
+console.log('Frequent tracks:', frequent);
+
+FILE: index.js (MAIN SERVER FILE)
+==================================
+const { handleTrack } = require('./utils/spotify');
+const express = require('express');
+const app = express();
+const fs = require('fs');
+const path = require('path');
+const { getAccessToken } = require('./utils/tokenManager');
+
+require('dotenv').config();
+
+const PORT = process.env.PORT || 8888;
+
+// Serve static files from public directory
+app.use(express.static('public'));
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.listen(PORT, () => {
+  console.log(`Server is live at http://localhost:${PORT}`);
+});
+
+const querystring = require('querystring');
+const axios = require('axios');
+
+// ✅ Global variables to hold tokens (in-memory for now)
+let access_token = null;
+let refresh_token = null;
+
+const client_id = process.env.SPOTIFY_CLIENT_ID;
+const client_secret = process.env.SPOTIFY_CLIENT_SECRET;
+const redirect_uri = process.env.REDIRECT_URI;
+
+// 1. LOGIN ROUTE
+app.get('/login', (req, res) => {
+  const scope = 'user-top-read playlist-modify-public playlist-modify-private user-read-currently-playing user-read-playback-state user-read-recently-played';
+  const auth_url = 'https://accounts.spotify.com/authorize?' +
+    querystring.stringify({
+      response_type: 'code',
+      client_id: client_id,
+      scope: scope,
+      redirect_uri: redirect_uri
+    });
+
+  res.redirect(auth_url);
+});
+
+// 2. CALLBACK ROUTE
+app.get('/callback', async (req, res) => {
+  const code = req.query.code || null;
+
+  try {
+    const response = await axios({
+      method: 'post',
+      url: 'https://accounts.spotify.com/api/token',
+      data: querystring.stringify({
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: redirect_uri
+      }),
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': 'Basic ' + Buffer.from(client_id + ':' + client_secret).toString('base64')
+      }
+    });
+
+    // ✅ Save tokens in global variables
+    access_token = response.data.access_token;
+    refresh_token = response.data.refresh_token;
+
+    // ✅ Save tokens to tokens.json
+    const tokenPath = path.join(__dirname, 'tokens.json');
+    fs.writeFileSync(tokenPath, JSON.stringify({
+      access_token,
+      refresh_token,
+      timestamp: Date.now()
+    }, null, 2));
+
+    res.send('✅ Tokens saved to tokens.json. You can now call /recent.');
+  } catch (error) {
+    console.error(error.response?.data || error.message);
+    res.status(500).send('Error getting tokens');
+  }
+});
+
+// 3. RECENTLY PLAYED ROUTE
+app.get('/recent', async (req, res) => {
+  try {
+    // Use tokenManager to get fresh access token
+    const access_token = await getAccessToken();
+
+    // Fetch recent tracks
+    const recentResponse = await axios.get(
+      'https://api.spotify.com/v1/me/player/recently-played?limit=10',
+      {
+        headers: { Authorization: `Bearer ${access_token}` }
+      }
+    );
+
+    const tracks = recentResponse.data.items;
+
+    if (!tracks || tracks.length === 0) {
+      return res.status(204).send('No recent tracks found. Play some music and try again.');
+    }
+
+    // Import logPlayedTrack from utils/spotify.js
+    const { logPlayedTrack } = require('./utils/spotify');
+    
+    // Process all tracks
+     for (const item of tracks) {
+      logPlayedTrack(item);
+      await handleTrack(item, access_token);
+    }
+
+    res.send(`✅ Processed ${tracks.length} recently played tracks.`);
+
+  } catch (err) {
+    console.error('Error in /recent:', err.response?.data || err.message);
+    return res.status(500).send('Failed to fetch recently played tracks.');
+  }
+});
+
+// 3b. CURRENTLY PLAYING ROUTE
+app.get('/currently-playing', async (req, res) => {
+  try {
+    // Use tokenManager to get fresh access token
+    const access_token = await getAccessToken();
+
+    // Import getCurrentlyPlaying from utils/spotify.js
+    const { getCurrentlyPlaying } = require('./utils/spotify');
+    
+    const currentTrack = await getCurrentlyPlaying(access_token);
+    res.json(currentTrack);
+
+  } catch (err) {
+    console.error('Error in /currently-playing:', err.message);
+    
+    // Check if it's an authentication error
+    if (err.message.includes('authenticate') || err.message.includes('token')) {
+      return res.status(401).json({
+        error: 'Authentication required',
+        message: 'Please visit /login to authenticate with Spotify',
+        action: 'login'
+      });
+    }
+    
+    return res.status(500).json({
+      error: 'Failed to fetch currently playing track',
+      message: err.message
+    });
+  }
+});
+
+// Reset and refresh track data endpoint
+app.get('/reset-tracks', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const playCountsPath = path.join(__dirname, 'data/playCounts.json');
+    const playedTracksPath = path.join(__dirname, 'data/playedTracks.json');
+    
+    // Clear old data files
+    if (fs.existsSync(playCountsPath)) {
+      fs.unlinkSync(playCountsPath);
+      console.log('🗑️ Cleared old play counts');
+    }
+    if (fs.existsSync(playedTracksPath)) {
+      fs.unlinkSync(playedTracksPath);
+      console.log('🗑️ Cleared old played tracks');
+    }
+    
+    // Re-fetch recent tracks with proper names
+    const access_token = await getAccessToken();
+    const { logPlayedTrack, handleTrack } = require('./utils/spotify');
+    
+    const recentResponse = await axios.get(
+      'https://api.spotify.com/v1/me/player/recently-played?limit=50',
+      {
+        headers: { Authorization: `Bearer ${access_token}` }
+      }
+    );
+
+    const tracks = recentResponse.data.items;
+    
+    if (tracks && tracks.length > 0) {
+      for (const item of tracks) {
+        logPlayedTrack(item);
+        await handleTrack(item, access_token);
+      }
+      console.log(`✅ Re-processed ${tracks.length} tracks with proper names`);
+    }
+    
+    res.send(`✅ Track data reset and refreshed! Processed ${tracks?.length || 0} tracks with proper names.`);
+    
+  } catch (error) {
+    console.error('Error resetting tracks:', error);
+    res.status(500).send('Failed to reset track data');
+  }
+});
+
+// Debug endpoint to check token and environment status
+app.get('/debug', (req, res) => {
+  try {
+    const fs = require('fs');
+    const tokenPath = path.join(__dirname, 'tokens.json');
+    
+    let tokenInfo = 'No tokens file found';
+    let envInfo = {
+      SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID ? 'Set' : 'Not set',
+      SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET ? 'Set' : 'Not set',
+      REDIRECT_URI: process.env.REDIRECT_URI ? 'Set' : 'Not set'
+    };
+    
+    if (fs.existsSync(tokenPath)) {
+      const tokens = JSON.parse(fs.readFileSync(tokenPath, 'utf8'));
+      const tokenAge = Date.now() - (tokens.timestamp || 0);
+      const tokenExpiry = 3600000; // 1 hour
+      
+      tokenInfo = {
+        hasAccessToken: !!tokens.access_token,
+        hasRefreshToken: !!tokens.refresh_token,
+        tokenAge: `${Math.round(tokenAge / 1000)} seconds`,
+        isExpired: tokenAge > tokenExpiry,
+        timestamp: tokens.timestamp ? new Date(tokens.timestamp).toISOString() : 'None'
+      };
+    }
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      environment: envInfo,
+      tokens: tokenInfo
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      error: 'Debug endpoint failed',
+      message: error.message
+    });
+  }
+});
+
+// filter working or not
+const { filterFrequentTracks } = require('./utils/filterTracks');
+
+app.get('/frequent', (req, res) => {
+  const frequent = filterFrequentTracks(); // default: >5 in 3 days
+  res.json(frequent);
+});
+
+// 4. SHOW FREQUENT ROUTE - Display frequent tracks in console
+app.get('/show-frequent', async (req, res) => {
+  try {
+    const { displayFrequentTracks } = require('./utils/displayFrequentTracks');
+    displayFrequentTracks(5);
+    res.send('Displayed frequent tracks in console');
+  } catch (error) {
+    console.error('Error in show-frequent:', error);
+    res.status(500).send('Failed to display frequent tracks.');
+  }
+});
+
+// 5. ANALYTICS ROUTE - Get play statistics
+app.get('/analytics', (req, res) => {
+  try {
+    const frequent = filterFrequentTracks();
+    const fs = require('fs');
+    const playCountsPath = path.join(__dirname, 'data/playCounts.json');
+    const playedTracksPath = path.join(__dirname, 'data/playedTracks.json');
+    
+    const playCounts = JSON.parse(fs.readFileSync(playCountsPath, 'utf8'));
+    const playedTracks = JSON.parse(fs.readFileSync(playedTracksPath, 'utf8'));
+    
+    const analytics = {
+      totalTracksPlayed: Object.keys(playCounts).length,
+      totalPlayEvents: playedTracks.length,
+      frequentTracks: frequent,
+      topTracks: Object.entries(playCounts)
+        .sort(([,a], [,b]) => b.count - a.count)
+        .slice(0, 10)
+        .map(([id, data]) => ({
+          track_id: id,
+          count: data.count,
+          lastPlayed: data.lastPlayed
+        }))
+    };
+    
+    res.json(analytics);
+  } catch (error) {
+    console.error('Error getting analytics:', error);
+    res.status(500).send('Failed to get analytics.');
+  }
+});
+
+// 6. SCHEDULER ROUTES
+const AutoPlayScheduler = require('./utils/scheduler');
+const scheduler = new AutoPlayScheduler();
+
+app.get('/scheduler/start', (req, res) => {
+  const interval = parseInt(req.query.interval) || 30; // default 30 minutes
+  scheduler.start(interval);
+  res.send(`✅ Scheduler started (runs every ${interval} minutes)`);
+});
+
+app.get('/scheduler/stop', (req, res) => {
+  scheduler.stop();
+  res.send('⏹️ Scheduler stopped');
+});
+
+app.get('/scheduler/status', (req, res) => {
+  res.json(scheduler.getStatus());
+});
+
+app.get('/scheduler/run-now', async (req, res) => {
+  try {
+    await scheduler.fetchAndProcessRecentTracks();
+    res.send('✅ Manual run completed');
+  } catch (error) {
+    res.status(500).send('Failed to run manual task');
+  }
+});
+
+FILE: utils/tokenManager.js
+==========================
+const fs = require('fs');
+const path = require('path');
+const axios = require('axios');
+require('dotenv').config();
+
+const TOKENS_FILE = path.join(__dirname, '..', 'tokens.json');
+const client_id = process.env.SPOTIFY_CLIENT_ID;
+const client_secret = process.env.SPOTIFY_CLIENT_SECRET;
+
+async function getAccessToken() {
+  try {
+    if (!fs.existsSync(TOKENS_FILE)) {
+      throw new Error('Tokens file not found. Please authenticate first.');
+    }
+
+    const tokens = JSON.parse(fs.readFileSync(TOKENS_FILE, 'utf8'));
+    
+    if (!tokens.access_token) {
+      throw new Error('No access token found. Please authenticate first.');
+    }
+
+    // Check if token is expired (tokens typically last 1 hour)
+    const tokenAge = Date.now() - (tokens.timestamp || 0);
+    const tokenExpiry = 3600000; // 1 hour in milliseconds
+    
+    if (tokenAge > tokenExpiry) {
+      console.log('🔄 Access token expired, refreshing...');
+      return await refreshAccessToken();
+    }
+
+    return tokens.access_token;
+  } catch (error) {
+    console.error('Error getting access token:', error.message);
+    throw error;
+  }
+}
+
+async function refreshAccessToken() {
+  try {
+    if (!fs.existsSync(TOKENS_FILE)) {
+      throw new Error('Tokens file not found. Please authenticate first.');
+    }
+
+    const tokens = JSON.parse(fs.readFileSync(TOKENS_FILE, 'utf8'));
+    
+    if (!tokens.refresh_token) {
+      throw new Error('No refresh token found. Please authenticate first.');
+    }
+
+    // Make request to Spotify to refresh the token
+    const response = await axios({
+      method: 'post',
+      url: 'https://accounts.spotify.com/api/token',
+      data: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: tokens.refresh_token
+      }),
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': 'Basic ' + Buffer.from(client_id + ':' + client_secret).toString('base64')
+      }
+    });
+
+    // Update tokens with new access token
+    const newTokens = {
+      ...tokens,
+      access_token: response.data.access_token,
+      timestamp: Date.now()
+    };
+
+    // Save updated tokens
+    fs.writeFileSync(TOKENS_FILE, JSON.stringify(newTokens, null, 2));
+    
+    console.log('✅ Access token refreshed successfully');
+    return newTokens.access_token;
+
+  } catch (error) {
+    console.error('Error refreshing access token:', error.response?.data || error.message);
+    
+    // If refresh fails, remove the tokens file to force re-authentication
+    if (fs.existsSync(TOKENS_FILE)) {
+      fs.unlinkSync(TOKENS_FILE);
+      console.log('🗑️ Removed expired tokens file. Please re-authenticate.');
+    }
+    
+    throw new Error('Failed to refresh access token. Please re-authenticate.');
+  }
+}
+
+module.exports = {
+  getAccessToken,
+  refreshAccessToken
+};
+
+FILE: utils/spotify.js
+======================
+const fs = require('fs');
+const path = require('path');
+const axios = require('axios');
+require('dotenv').config();
+
+const playCountPath = path.join(__dirname, '../data/playCounts.json');
+
+const playedTracksPath = path.join(__dirname, '../data/playedTracks.json');
+
+function logPlayedTrack(track) {
+  const entry = {
+    track_id: track.track.id,
+    track_name: track.track.name,
+    artist: track.track.artists.map(a => a.name).join(', '),
+    played_at: Date.now()
+  };
+
+  let history = [];
+
+  try {
+    history = JSON.parse(fs.readFileSync(playedTracksPath));
+  } catch (err) {
+    history = [];
+  }
+
+  history.push(entry);
+  fs.writeFileSync(playedTracksPath, JSON.stringify(history, null, 2));
+}
+
+
+// Load play count data
+function loadPlayCounts() {
+  try {
+    const data = fs.readFileSync(playCountPath);
+    return JSON.parse(data);
+  } catch (err) {
+    return {};
+  }
+}
+
+// Save play count data
+function savePlayCounts(playCounts) {
+  fs.writeFileSync(playCountPath, JSON.stringify(playCounts, null, 2));
+}
+
+// Update play count and check if threshold passed
+async function handleTrack(track, access_token) {
+  const playCounts = loadPlayCounts();
+
+  const trackData = track.track || track;  // fallback
+
+  if (!trackData || !trackData.id || !trackData.uri) {
+    console.warn('⚠️ Skipping invalid track object:', JSON.stringify(track));
+    return;
+  }
+
+  const trackId = trackData.id;
+  console.log(`🎵 Processing track: ${trackData.name} by ${trackData.artists?.map(a => a.name).join(', ')}`);
+
+  // Update play counts
+  if (!playCounts[trackId]) {
+    playCounts[trackId] = { count: 1, lastPlayed: Date.now() };
+  } else {
+    playCounts[trackId].count++;
+    playCounts[trackId].lastPlayed = Date.now();
+  }
+
+  // Threshold reached: log only; no playlist operations
+  if (playCounts[trackId].count === 5) {
+    console.log(`🎯 Track reached threshold (5 plays): ${trackData.name}`);
+  }
+
+  savePlayCounts(playCounts);
+}
+
+
+// Get currently playing track from Spotify
+async function getCurrentlyPlaying(access_token) {
+  try {
+    const response = await axios.get(
+      'https://api.spotify.com/v1/me/player/currently-playing',
+      {
+        headers: { Authorization: `Bearer ${access_token}` }
+      }
+    );
+
+    if (response.data && response.data.is_playing && response.data.item) {
+      const track = response.data.item;
+      const progress = response.data.progress_ms;
+      const duration = track.duration_ms;
+      
+      return {
+        isPlaying: true,
+        track: {
+          id: track.id,
+          name: track.name,
+          artist: track.artists.map(a => a.name).join(', '),
+          album: track.album.name,
+          albumArt: track.album.images[0]?.url,
+          duration: duration,
+          progress: progress,
+          progressPercent: Math.round((progress / duration) * 100)
+        },
+        timestamp: Date.now()
+      };
+    } else {
+      return {
+        isPlaying: false,
+        message: 'No track currently playing'
+      };
+    }
+  } catch (error) {
+    console.error('Error fetching currently playing track:', error.response?.data || error.message);
+    return {
+      isPlaying: false,
+      error: 'Failed to fetch current playback'
+    };
+  }
+}
+
+
+module.exports = {
+  handleTrack,
+  logPlayedTrack,
+  getCurrentlyPlaying
+};
+
+FILE: utils/filterTracks.js
+===========================
+const fs = require('fs');
+const path = require('path');
+
+const playCountsPath = path.join(__dirname, '../data/playCounts.json');
+const playedTracksPath = path.join(__dirname, '../data/playedTracks.json');
+
+function filterFrequentTracks(threshold = 3, days = 30) {
+  try {
+    // Load play counts
+    const playCounts = JSON.parse(fs.readFileSync(playCountsPath, 'utf8'));
+    
+    // Load played tracks for timestamp data
+    const playedTracks = JSON.parse(fs.readFileSync(playedTracksPath, 'utf8'));
+    
+    // Calculate cutoff time (days ago)
+    const cutoffTime = Date.now() - (days * 24 * 60 * 60 * 1000);
+    
+    // Filter tracks that meet threshold and time criteria
+    const frequentTracks = Object.entries(playCounts)
+      .filter(([trackId, data]) => {
+        // Check if track meets play count threshold
+        const meetsThreshold = data.count >= threshold;
+        
+        // Check if track was played within the time window
+        const meetsTimeCriteria = data.lastPlayed >= cutoffTime;
+        
+        return meetsThreshold && meetsTimeCriteria;
+      })
+      .map(([trackId, data]) => {
+        // Find track details from played tracks
+        const trackInfo = playedTracks.find(track => track.track_id === trackId);
+        
+        return {
+          track_id: trackId,
+          track_name: trackInfo ? trackInfo.track_name : 'Unknown',
+          artist: trackInfo ? trackInfo.artist : 'Unknown',
+          count: data.count,
+          lastPlayed: data.lastPlayed
+        };
+      })
+      .sort((a, b) => b.count - a.count); // Sort by play count (highest first)
+    
+    return frequentTracks;
+    
+  } catch (error) {
+    console.error('Error filtering frequent tracks:', error);
+    return [];
+  }
+}
+
+module.exports = {
+  filterFrequentTracks
+};
+
+FILE: utils/scheduler.js
+========================
+const axios = require('axios');
+const { getAccessToken } = require('./tokenManager');
+const { logPlayedTrack, handleTrack } = require('./spotify');
+
+class AutoPlayScheduler {
+  constructor() {
+    this.intervalId = null;
+    this.isRunning = false;
+    this.intervalMinutes = 30;
+  }
+
+  async fetchAndProcessRecentTracks() {
+    try {
+      console.log('🔄 Scheduler: Fetching recent tracks...');
+      
+      const access_token = await getAccessToken();
+      
+      const response = await axios.get(
+        'https://api.spotify.com/v1/me/player/recently-played?limit=20',
+        {
+          headers: { Authorization: `Bearer ${access_token}` }
+        }
+      );
+
+      const tracks = response.data.items;
+      
+      if (tracks && tracks.length > 0) {
+        console.log(`📊 Scheduler: Processing ${tracks.length} recent tracks...`);
+        
+        for (const track of tracks) {
+          logPlayedTrack(track);
+          await handleTrack(track, access_token);
+        }
+        
+        console.log('✅ Scheduler: Recent tracks processed successfully');
+      } else {
+        console.log('ℹ️ Scheduler: No recent tracks found');
+      }
+      
+    } catch (error) {
+      console.error('❌ Scheduler error:', error.response?.data || error.message);
+    }
+  }
+
+  start(intervalMinutes = 30) {
+    if (this.isRunning) {
+      console.log('⚠️ Scheduler is already running');
+      return;
+    }
+
+    this.intervalMinutes = intervalMinutes;
+    this.isRunning = true;
+    
+    // Run immediately
+    this.fetchAndProcessRecentTracks();
+    
+    // Then schedule recurring runs
+    this.intervalId = setInterval(() => {
+      this.fetchAndProcessRecentTracks();
+    }, intervalMinutes * 60 * 1000);
+    
+    console.log(`🚀 Scheduler started (runs every ${intervalMinutes} minutes)`);
+  }
+
+  stop() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    this.isRunning = false;
+    console.log('⏹️ Scheduler stopped');
+  }
+
+  getStatus() {
+    return {
+      isRunning: this.isRunning,
+      intervalMinutes: this.intervalMinutes,
+      nextRun: this.isRunning ? new Date(Date.now() + this.intervalMinutes * 60 * 1000) : null
+    };
+  }
+}
+
+module.exports = AutoPlayScheduler;
+
+FILE: utils/autoAdd.js
+=======================
+const axios = require('axios');
+const { getAccessToken } = require('./tokenManager');
+
+async function addToPlaylist(trackUri, playlistId) {
+  try {
+    const access_token = await getAccessToken();
+    
+    const response = await axios.post(
+      `https://api.spotify.com/v1/playlists/${playlistId}/tracks`,
+      {
+        uris: [trackUri]
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${access_token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    console.log('✅ Track added to playlist successfully');
+    return true;
+    
+  } catch (error) {
+    console.error('❌ Error adding track to playlist:', error.response?.data || error.message);
+    return false;
+  }
+}
+
+module.exports = {
+  addToPlaylist
+};
+
+FILE: utils/moodAnalyzer.js
+============================
+const fs = require('fs');
+const path = require('path');
+
+const playCountsPath = path.join(__dirname, '../data/playCounts.json');
+
+function analyzeMood(tracks) {
+  // Simple mood analysis based on track names and artists
+  // This is a basic implementation - could be enhanced with Spotify's audio features
+  
+  const moodKeywords = {
+    happy: ['happy', 'joy', 'smile', 'dance', 'party', 'celebration', 'sunshine', 'summer'],
+    sad: ['sad', 'tears', 'cry', 'lonely', 'heartbreak', 'pain', 'sorrow', 'rain'],
+    energetic: ['energy', 'power', 'strong', 'fire', 'thunder', 'lightning', 'rock', 'fast'],
+    calm: ['calm', 'peace', 'quiet', 'gentle', 'soft', 'smooth', 'chill', 'relax'],
+    romantic: ['love', 'heart', 'romance', 'kiss', 'sweet', 'beautiful', 'darling', 'honey']
+  };
+  
+  let moodScores = {
+    happy: 0,
+    sad: 0,
+    energetic: 0,
+    calm: 0,
+    romantic: 0
+  };
+  
+  tracks.forEach(track => {
+    const trackText = `${track.track_name} ${track.artist}`.toLowerCase();
+    
+    Object.entries(moodKeywords).forEach(([mood, keywords]) => {
+      keywords.forEach(keyword => {
+        if (trackText.includes(keyword)) {
+          moodScores[mood] += track.count; // Weight by play count
+        }
+      });
+    });
+  });
+  
+  // Find dominant mood
+  const dominantMood = Object.entries(moodScores)
+    .sort(([,a], [,b]) => b - a)[0][0];
+  
+  return {
+    moodScores,
+    dominantMood,
+    totalTracks: tracks.length
+  };
+}
+
+module.exports = {
+  analyzeMood
+};
+
+FILE: utils/showFrequent.js
+============================
+const { filterFrequentTracks } = require('./filterTracks');
+const { analyzeMood } = require('./moodAnalyzer');
+
+function displayFrequentTracks(limit = 10) {
+  try {
+    const frequentTracks = filterFrequentTracks();
+    
+    if (frequentTracks.length === 0) {
+      console.log('📭 No frequent tracks found');
+      return;
+    }
+    
+    console.log('\n🎵 YOUR MOST FREQUENT TRACKS:');
+    console.log('================================');
+    
+    frequentTracks.slice(0, limit).forEach((track, index) => {
+      console.log(`${index + 1}. ${track.track_name} - ${track.artist}`);
+      console.log(`   Plays: ${track.count} | Last played: ${new Date(track.lastPlayed).toLocaleDateString()}`);
+      console.log('');
+    });
+    
+    // Mood analysis
+    const moodAnalysis = analyzeMood(frequentTracks);
+    console.log('🎭 MOOD ANALYSIS:');
+    console.log('==================');
+    console.log(`Dominant mood: ${moodAnalysis.dominantMood.toUpperCase()}`);
+    console.log('Mood breakdown:');
+    Object.entries(moodAnalysis.moodScores).forEach(([mood, score]) => {
+      if (score > 0) {
+        console.log(`  ${mood}: ${score}`);
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error displaying frequent tracks:', error);
+  }
+}
+
+module.exports = {
+  displayFrequentTracks
+};
+
+FILE: utils/trackUtils.js
+=========================
+const fs = require('fs');
+const path = require('path');
+
+const playCountsPath = path.join(__dirname, '../data/playCounts.json');
+const playedTracksPath = path.join(__dirname, '../data/playedTracks.json');
+
+function getTrackStats() {
+  try {
+    const playCounts = JSON.parse(fs.readFileSync(playCountsPath, 'utf8'));
+    const playedTracks = JSON.parse(fs.readFileSync(playedTracksPath, 'utf8'));
+    
+    const totalTracks = Object.keys(playCounts).length;
+    const totalPlays = playedTracks.length;
+    const averagePlaysPerTrack = totalTracks > 0 ? (totalPlays / totalTracks).toFixed(2) : 0;
+    
+    // Get top tracks by play count
+    const topTracks = Object.entries(playCounts)
+      .sort(([,a], [,b]) => b.count - a.count)
+      .slice(0, 10)
+      .map(([id, data]) => {
+        const trackInfo = playedTracks.find(track => track.track_id === id);
+        return {
+          id,
+          name: trackInfo ? trackInfo.track_name : 'Unknown',
+          artist: trackInfo ? trackInfo.artist : 'Unknown',
+          count: data.count,
+          lastPlayed: data.lastPlayed
+        };
+      });
+    
+    return {
+      totalTracks,
+      totalPlays,
+      averagePlaysPerTrack,
+      topTracks
+    };
+    
+  } catch (error) {
+    console.error('Error getting track stats:', error);
+    return {
+      totalTracks: 0,
+      totalPlays: 0,
+      averagePlaysPerTrack: 0,
+      topTracks: []
+    };
+  }
+}
+
+function searchTracks(query) {
+  try {
+    const playCounts = JSON.parse(fs.readFileSync(playCountsPath, 'utf8'));
+    const playedTracks = JSON.parse(fs.readFileSync(playedTracksPath, 'utf8'));
+    
+    const queryLower = query.toLowerCase();
+    
+    const results = playedTracks
+      .filter(track => 
+        track.track_name.toLowerCase().includes(queryLower) ||
+        track.artist.toLowerCase().includes(queryLower)
+      )
+      .map(track => {
+        const playCount = playCounts[track.track_id]?.count || 0;
+        return {
+          ...track,
+          playCount
+        };
+      })
+      .sort((a, b) => b.playCount - a.playCount);
+    
+    return results;
+    
+  } catch (error) {
+    console.error('Error searching tracks:', error);
+    return [];
+  }
+}
+
+module.exports = {
+  getTrackStats,
+  searchTracks
+};
+
+FILE: routes/playlists.js
+==========================
+const express = require('express');
+const router = express.Router();
+const axios = require('axios');
+const { getAccessToken } = require('../utils/tokenManager');
+
+// Get user's playlists
+router.get('/', async (req, res) => {
+  try {
+    const access_token = await getAccessToken();
+    
+    const response = await axios.get(
+      'https://api.spotify.com/v1/me/playlists?limit=50',
+      {
+        headers: { Authorization: `Bearer ${access_token}` }
+      }
+    );
+    
+    const playlists = response.data.items.map(playlist => ({
+      id: playlist.id,
+      name: playlist.name,
+      description: playlist.description,
+      tracks: playlist.tracks.total,
+      images: playlist.images
+    }));
+    
+    res.json(playlists);
+    
+  } catch (error) {
+    console.error('Error fetching playlists:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Failed to fetch playlists' });
+  }
+});
+
+// Create a new playlist
+router.post('/', async (req, res) => {
+  try {
+    const access_token = await getAccessToken();
+    const { name, description, public: isPublic } = req.body;
+    
+    // First get user ID
+    const userResponse = await axios.get(
+      'https://api.spotify.com/v1/me',
+      {
+        headers: { Authorization: `Bearer ${access_token}` }
+      }
+    );
+    
+    const userId = userResponse.data.id;
+    
+    // Create playlist
+    const playlistResponse = await axios.post(
+      `https://api.spotify.com/v1/users/${userId}/playlists`,
+      {
+        name: name || 'AutoPlay Generated Playlist',
+        description: description || 'Playlist created by AutoPlay',
+        public: isPublic !== undefined ? isPublic : false
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${access_token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    res.json(playlistResponse.data);
+    
+  } catch (error) {
+    console.error('Error creating playlist:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Failed to create playlist' });
+  }
+});
+
+// Add tracks to playlist
+router.post('/:playlistId/tracks', async (req, res) => {
+  try {
+    const access_token = await getAccessToken();
+    const { playlistId } = req.params;
+    const { trackUris } = req.body;
+    
+    if (!trackUris || !Array.isArray(trackUris)) {
+      return res.status(400).json({ error: 'trackUris array is required' });
+    }
+    
+    const response = await axios.post(
+      `https://api.spotify.com/v1/playlists/${playlistId}/tracks`,
+      {
+        uris: trackUris
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${access_token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    res.json({ message: 'Tracks added successfully', snapshot_id: response.data.snapshot_id });
+    
+  } catch (error) {
+    console.error('Error adding tracks to playlist:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Failed to add tracks to playlist' });
+  }
+});
+
+module.exports = router;
+
+FILE: routes/recent.js
+=======================
+const express = require('express');
+const router = express.Router();
+const axios = require('axios');
+const { getAccessToken } = require('../utils/tokenManager');
+const { logPlayedTrack, handleTrack } = require('../utils/spotify');
+
+// Get recently played tracks
+router.get('/', async (req, res) => {
+  try {
+    const access_token = await getAccessToken();
+    const limit = parseInt(req.query.limit) || 20;
+    
+    const response = await axios.get(
+      `https://api.spotify.com/v1/me/player/recently-played?limit=${limit}`,
+      {
+        headers: { Authorization: `Bearer ${access_token}` }
+      }
+    );
+    
+    const tracks = response.data.items;
+    
+    if (!tracks || tracks.length === 0) {
+      return res.status(204).json({ message: 'No recent tracks found' });
+    }
+    
+    // Process tracks for AutoPlay
+    for (const track of tracks) {
+      logPlayedTrack(track);
+      await handleTrack(track, access_token);
+    }
+    
+    const processedTracks = tracks.map(item => ({
+      id: item.track.id,
+      name: item.track.name,
+      artist: item.track.artists.map(a => a.name).join(', '),
+      album: item.track.album.name,
+      albumArt: item.track.album.images[0]?.url,
+      playedAt: item.played_at,
+      uri: item.track.uri
+    }));
+    
+    res.json({
+      count: processedTracks.length,
+      tracks: processedTracks
+    });
+    
+  } catch (error) {
+    console.error('Error fetching recent tracks:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Failed to fetch recent tracks' });
+  }
+});
+
+// Get specific number of recent tracks
+router.get('/:limit', async (req, res) => {
+  try {
+    const limit = parseInt(req.params.limit);
+    
+    if (isNaN(limit) || limit < 1 || limit > 50) {
+      return res.status(400).json({ error: 'Limit must be a number between 1 and 50' });
+    }
+    
+    // Redirect to main recent endpoint with limit query
+    res.redirect(`/recent?limit=${limit}`);
+    
+  } catch (error) {
+    console.error('Error with recent tracks limit:', error);
+    res.status(500).json({ error: 'Invalid limit parameter' });
+  }
+});
+
+module.exports = router;
+
+FILE: public/index.html (MAIN FRONTEND)
+========================================
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoPlay - Spotify Music Tracker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(29, 185, 84, 0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.3);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h3 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 20px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #1db954;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .track-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .track-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .track-item:last-child {
+            border-bottom: none;
+        }
+
+        .track-info {
+            flex: 1;
+        }
+
+        .track-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .track-artist {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .track-count {
+            background: #1db954;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .empty-state .icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+
+        /* Currently Playing Styles */
+        .now-playing {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .now-playing.playing {
+            background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
+            color: white;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+
+        .now-playing.not-playing {
+            background: #f8f9fa;
+            color: #666;
+            border-radius: 10px;
+            margin: 10px 0;
+            padding: 30px 20px;
+        }
+
+        .album-art {
+            width: 120px;
+            height: 120px;
+            border-radius: 10px;
+            margin: 0 auto 15px;
+            object-fit: cover;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .track-details h4 {
+            margin-bottom: 8px;
+            font-size: 1.2rem;
+        }
+
+        .track-details p {
+            margin-bottom: 5px;
+            opacity: 0.9;
+        }
+
+        .progress-container {
+            width: 100%;
+            background: rgba(255,255,255,0.3);
+            border-radius: 10px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: white;
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+
+        .time-display {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-top: 10px;
+        }
+
+        .message {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .scheduler-status {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-running {
+            background: #28a745;
+        }
+
+        .status-stopped {
+            background: #dc3545;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎵 AutoPlay</h1>
+            <p>Your Spotify Music Tracking Dashboard</p>
+        </div>
+
+        <!-- Currently Playing Section -->
+        <div class="card">
+            <h3>🎵 Now Playing</h3>
+            <div id="currentlyPlayingContent">
+                <div class="now-playing not-playing">
+                    <div class="icon">🎵</div>
+                    <p>Loading current track...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <button class="btn btn-primary" onclick="fetchRecentTracks()">📥 Fetch Recent Tracks</button>
+            <button class="btn btn-secondary" onclick="refreshData()">🔄 Refresh Data</button>
+            <button class="btn btn-primary" onclick="startScheduler()">🚀 Start Scheduler</button>
+            <button class="btn btn-danger" onclick="stopScheduler()">⏹️ Stop Scheduler</button>
+            <button class="btn btn-secondary" onclick="runSchedulerNow()">⚡ Run Now</button>
+        </div>
+
+        <!-- Scheduler Status -->
+        <div class="card scheduler-status">
+            <h3>⏰ Scheduler Status</h3>
+            <div id="schedulerStatus">
+                <p>Loading scheduler status...</p>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="grid">
+            <div class="card">
+                <h3>📊 Listening Overview</h3>
+                <div class="stats">
+                    <div class="stat">
+                        <div class="stat-number" id="totalTracks">-</div>
+                        <div class="stat-label">Unique Tracks</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number" id="totalPlays">-</div>
+                        <div class="stat-label">Total Plays</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number" id="frequentTracks">-</div>
+                        <div class="stat-label">Frequent Tracks</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>🎯 Your Most Played Tracks</h3>
+                <div id="frequentTracksList" class="track-list">
+                    <div class="empty-state">
+                        <div class="icon">🎵</div>
+                        <p>No frequent tracks found yet</p>
+                        <p>Fetch recent tracks to get started!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Message Display -->
+        <div id="messageContainer"></div>
+    </div>
+
+    <script>
+        async function fetchData(endpoint) {
+            try {
+                const response = await fetch(endpoint);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                throw error;
+            }
+        }
+
+        async function fetchRecentTracks() {
+            try {
+                showMessage('Fetching recent tracks...', 'success');
+                const result = await fetchData('/recent');
+                showMessage(result, 'success');
+                await updateAnalytics();
+                await updateCurrentlyPlaying();
+            } catch (error) {
+                showMessage('Failed to fetch recent tracks: ' + error.message, 'error');
+            }
+        }
+
+        async function updateCurrentlyPlaying() {
+            try {
+                const currentTrack = await fetchData('/currently-playing');
+                const contentElement = document.getElementById('currentlyPlayingContent');
+                
+                if (currentTrack.isPlaying) {
+                    const track = currentTrack.track;
+                    const progressPercent = track.progressPercent || 0;
+                    
+                    contentElement.innerHTML = `
+                        <div class="now-playing playing">
+                            <img src="${track.albumArt || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCIgdmlld0JveD0iMCAwIDEyMCAxMjAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iMTIwIiBmaWxsPSIjZmZmZmZmIi8+CjxwYXRoIGQ9Ik02MCAzMEM2MCAyNi44NTg2IDYyLjg1ODYgMjQgNjYgMjRIMTQwQzE0My4xNDIgMjQgMTQ2IDI2Ljg1ODYgMTQ2IDMwVjkwQzE0NiA5My4xNDE0IDE0My4xNDIgOTYgMTQwIDk2SDY2QzYyLjg1ODYgOTYgNjAgOTMuMTQxNCA2MCA5MFYzMFoiIGZpbGw9IiMxZGI5NTQiLz4KPC9zdmc+'}" alt="Album Art" class="album-art">
+                            <div class="track-details">
+                                <h4>${track.name}</h4>
+                                <p>${track.artist}</p>
+                                <p>${track.album}</p>
+                            </div>
+                            <div class="progress-container">
+                                <div class="progress-bar" style="width: ${progressPercent}%"></div>
+                            </div>
+                            <div class="time-display">
+                                ${formatTime(track.progress)} / ${formatTime(track.duration)}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    contentElement.innerHTML = `
+                        <div class="now-playing not-playing">
+                            <div class="icon">🎵</div>
+                            <p>${currentTrack.message || 'No track currently playing'}</p>
+                            <p>Start playing music on Spotify to see it here!</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error updating currently playing:', error);
+                const contentElement = document.getElementById('currentlyPlayingContent');
+                contentElement.innerHTML = `
+                    <div class="now-playing not-playing">
+                        <div class="icon">⚠️</div>
+                        <p>Error loading current track</p>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function formatTime(ms) {
+            if (!ms) return '0:00';
+            const minutes = Math.floor(ms / 60000);
+            const seconds = Math.floor((ms % 60000) / 1000);
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        async function updateAnalytics() {
+            try {
+                const analytics = await fetchData('/analytics');
+                
+                // Update stats
+                document.getElementById('totalTracks').textContent = analytics.totalTracksPlayed;
+                document.getElementById('totalPlays').textContent = analytics.totalPlayEvents;
+                document.getElementById('frequentTracks').textContent = analytics.frequentTracks.length;
+                
+                // Update frequent tracks list
+                const frequentTracksList = document.getElementById('frequentTracksList');
+                
+                if (analytics.frequentTracks.length === 0) {
+                    frequentTracksList.innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">🎵</div>
+                            <p>No frequent tracks found yet</p>
+                            <p>Fetch recent tracks to get started!</p>
+                        </div>
+                    `;
+                } else {
+                    frequentTracksList.innerHTML = analytics.frequentTracks.map(track => `
+                        <div class="track-item">
+                            <div class="track-info">
+                                <div class="track-name">${track.track_name}</div>
+                                <div class="track-artist">${track.artist}</div>
+                            </div>
+                            <div class="track-count">${track.count} plays</div>
+                        </div>
+                    `).join('');
+                }
+                
+            } catch (error) {
+                console.error('Error updating analytics:', error);
+                showMessage('Failed to update analytics: ' + error.message, 'error');
+            }
+        }
+
+        async function updateSchedulerStatus() {
+            try {
+                const status = await fetchData('/scheduler/status');
+                const statusElement = document.getElementById('schedulerStatus');
+                
+                const statusClass = status.isRunning ? 'status-running' : 'status-stopped';
+                const statusText = status.isRunning ? 'Running' : 'Stopped';
+                
+                statusElement.innerHTML = `
+                    <p>
+                        <span class="status-indicator ${statusClass}"></span>
+                        Status: <strong>${statusText}</strong>
+                    </p>
+                    <p>Interval: <strong>${status.intervalMinutes} minutes</strong></p>
+                    ${status.nextRun ? `<p>Next run: <strong>${new Date(status.nextRun).toLocaleString()}</strong></p>` : ''}
+                `;
+                
+            } catch (error) {
+                console.error('Error updating scheduler status:', error);
+                document.getElementById('schedulerStatus').innerHTML = '<p>Error loading scheduler status</p>';
+            }
+        }
+
+        async function startScheduler() {
+            try {
+                const interval = prompt('Enter interval in minutes (default: 30):', '30');
+                const result = await fetchData(`/scheduler/start?interval=${interval || 30}`);
+                showMessage(result, 'success');
+                await updateSchedulerStatus();
+            } catch (error) {
+                showMessage('Failed to start scheduler: ' + error.message, 'error');
+            }
+        }
+
+        async function stopScheduler() {
+            try {
+                const result = await fetchData('/scheduler/stop');
+                showMessage(result, 'success');
+                await updateSchedulerStatus();
+            } catch (error) {
+                showMessage('Failed to stop scheduler: ' + error.message, 'error');
+            }
+        }
+
+        async function runSchedulerNow() {
+            try {
+                const result = await fetchData('/scheduler/run-now');
+                showMessage(result, 'success');
+                await updateAnalytics();
+            } catch (error) {
+                showMessage('Failed to run scheduler: ' + error.message, 'error');
+            }
+        }
+
+        async function refreshData() {
+            await updateAnalytics();
+            await updateSchedulerStatus();
+            await updateCurrentlyPlaying();
+            showMessage('Data refreshed!', 'success');
+        }
+
+        function showMessage(message, type = 'success') {
+            const container = document.getElementById('messageContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = message;
+            
+            container.appendChild(messageDiv);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (messageDiv.parentNode) {
+                    messageDiv.parentNode.removeChild(messageDiv);
+                }
+            }, 5000);
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', async () => {
+            await updateSchedulerStatus();
+            await updateAnalytics();
+            await updateCurrentlyPlaying();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(updateAnalytics, 30000);
+            
+            // Auto-refresh currently playing every 5 seconds for live updates
+            setInterval(updateCurrentlyPlaying, 5000);
+        });
+    </script>
+</body>
+</html>
+
+FILE: .env.example
+==================
+# Spotify API Credentials
+# Get these from https://developer.spotify.com/dashboard
+SPOTIFY_CLIENT_ID=your_spotify_client_id_here
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret_here
+
+# Redirect URI for Spotify OAuth
+# Must match what you set in your Spotify app settings
+REDIRECT_URI=http://localhost:8888/callback
+
+# Server Port (optional)
+PORT=8888
+
+# Note: Create a .env file with your actual values
+# Never commit the .env file to version control
+
+FILE: data/playlistInfo.json
+============================
+{
+  "playlists": [],
+  "lastUpdated": null
+}
+
+FILE: data/playCounts.json
+==========================
+{
+  "example_track_id": {
+    "count": 1,
+    "lastPlayed": 1703123456789
+  }
+}
+
+FILE: data/playedTracks.json
+============================
+[
+  {
+    "track_id": "example_track_id",
+    "track_name": "Example Track Name",
+    "artist": "Example Artist",
+    "played_at": 1703123456789
+  }
+]
+
+PROJECT SUMMARY
+===============
+
+AutoPlay is a comprehensive Spotify music tracking application that provides:
+
+FEATURES:
+- Live Spotify track tracking with real-time progress
+- Recently played tracks analysis
+- Frequent tracks identification
+- Automatic scheduler for background tracking
+- Beautiful web dashboard
+- Token management with automatic refresh
+- Mood analysis based on listening patterns
+- Playlist management capabilities
+
+TECHNOLOGY STACK:
+- Backend: Node.js with Express
+- Frontend: HTML5, CSS3, JavaScript (ES6+)
+- Spotify Web API integration
+- File-based data storage (JSON)
+- Nodemon for development
+
+API ENDPOINTS:
+- /login - Spotify OAuth authentication
+- /callback - OAuth callback handling
+- /recent - Fetch recently played tracks
+- /currently-playing - Get current playback
+- /analytics - Get listening statistics
+- /frequent - Get frequently played tracks
+- /scheduler/* - Scheduler management
+- /reset-tracks - Reset and refresh track data
+- /debug - Debug information
+
+SETUP INSTRUCTIONS:
+1. Clone the repository
+2. Run 'npm install' to install dependencies
+3. Create .env file with Spotify credentials
+4. Run 'npm run dev' to start development server
+5. Visit /login to authenticate with Spotify
+6. Access dashboard at root URL
+
+The application automatically tracks your Spotify listening habits and provides insights into your music preferences.

@@ -3,8 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutoPlay Dashboard</title>
+    <title>AutoPlay - Spotify Music Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-primary: #121212;
+            --bg-secondary: #181818;
+            --bg-tertiary: #282828;
+            --accent-green: #1DB954;
+            --accent-green-hover: #1ed760;
+            --text-primary: #FFFFFF;
+            --text-secondary: #B3B3B3;
+            --text-muted: #727272;
+            --border-color: #282828;
+            --shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+            --shadow-hover: 0 12px 32px rgba(0, 0, 0, 0.4);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,398 +27,684 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 0 20px;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1DB954 0%, #1ed760 100%);
+            padding: 40px 0;
+            text-align: center;
+            margin-bottom: 40px;
+            position: relative;
             overflow: hidden;
         }
 
-        .header {
-            background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="75" cy="75" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="50" cy="10" r="0.5" fill="rgba(255,255,255,0.1)"/><circle cx="10" cy="60" r="0.5" fill="rgba(255,255,255,0.1)"/><circle cx="90" cy="40" r="0.5" fill="rgba(255,255,255,0.1)"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+            opacity: 0.3;
         }
 
         .header h1 {
-            font-size: 2.5rem;
+            font-size: 3.5rem;
+            font-weight: 700;
             margin-bottom: 10px;
+            position: relative;
+            z-index: 1;
         }
 
         .header p {
-            font-size: 1.1rem;
-            opacity: 0.9;
-        }
-
-        .content {
-            padding: 30px;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .card {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 20px;
-            border-left: 4px solid #1db954;
-        }
-
-        .card h3 {
-            color: #333;
-            margin-bottom: 15px;
             font-size: 1.2rem;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
         }
 
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .stat {
-            text-align: center;
-            padding: 15px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .stat-number {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #1db954;
-        }
-
-        .stat-label {
-            color: #666;
-            font-size: 0.9rem;
-            margin-top: 5px;
-        }
-
+        /* Controls */
         .controls {
             display: flex;
-            gap: 10px;
+            gap: 15px;
+            margin-bottom: 40px;
             flex-wrap: wrap;
-            margin-bottom: 20px;
+            justify-content: center;
         }
 
         .btn {
-            padding: 10px 20px;
+            padding: 14px 28px;
             border: none;
-            border-radius: 5px;
+            border-radius: 25px;
             cursor: pointer;
-            font-weight: 500;
-            transition: all 0.3s ease;
-        }
-
-        .btn-primary {
-            background: #1db954;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #1ed760;
-        }
-
-        .btn-secondary {
-            background: #6c757d;
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background: #5a6268;
-        }
-
-        .btn-danger {
-            background: #dc3545;
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background: #c82333;
-        }
-
-        .track-list {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        .track-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px;
-            background: white;
-            margin-bottom: 5px;
-            border-radius: 5px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .track-info {
-            flex: 1;
-        }
-
-        .track-name {
-            font-weight: 500;
-            color: #333;
-        }
-
-        .track-artist {
-            color: #666;
-            font-size: 0.9rem;
-        }
-
-        .track-count {
-            background: #1db954;
-            color: white;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 0.8rem;
-            font-weight: bold;
-        }
-
-        .status-indicator {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 8px;
-        }
-
-        .status-running {
-            background: #28a745;
-        }
-
-        .status-stopped {
-            background: #dc3545;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 20px;
-            color: #666;
-        }
-
-        .error {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 15px;
-        }
-
-        .section-title {
-            font-size: 1.8rem;
-            color: #333;
-            margin-bottom: 20px;
-            text-align: center;
-            font-weight: 600;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #666;
-        }
-
-        .empty-state .icon {
-            font-size: 3rem;
-            margin-bottom: 15px;
-            opacity: 0.5;
-        }
-
-        /* Currently Playing Styles */
-        .now-playing {
-            text-align: center;
-            padding: 20px;
-        }
-
-        .now-playing.playing {
-            background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
-            color: white;
-            border-radius: 10px;
-            margin: 10px 0;
-        }
-
-        .now-playing.not-playing {
-            background: #f8f9fa;
-            color: #666;
-            border-radius: 10px;
-            margin: 10px 0;
-            padding: 30px 20px;
-        }
-
-        .album-art {
-            width: 120px;
-            height: 120px;
-            border-radius: 10px;
-            margin: 0 auto 15px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
-            object-fit: cover;
-        }
-
-        .track-title {
-            font-size: 1.3rem;
-            font-weight: 600;
-            margin-bottom: 8px;
-            line-height: 1.3;
-        }
-
-        .track-artist {
             font-size: 1rem;
-            opacity: 0.9;
-            margin-bottom: 8px;
-        }
-
-        .track-album {
-            font-size: 0.9rem;
-            opacity: 0.8;
-            margin-bottom: 15px;
-        }
-
-        .progress-container {
-            background: rgba(255,255,255,0.2);
-            border-radius: 10px;
-            height: 8px;
-            margin: 15px 0;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            position: relative;
             overflow: hidden;
         }
 
-        .progress-bar {
-            background: white;
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
             height: 100%;
-            border-radius: 10px;
-            transition: width 0.3s ease;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
         }
 
-        .time-info {
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary {
+            background: var(--accent-green);
+            color: var(--text-primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-green-hover);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 2px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--accent-green);
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: var(--text-primary);
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+        }
+
+        /* Date Range Selector */
+        .date-selector {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 40px;
+            border: 1px solid var(--border-color);
+        }
+
+        .date-selector h3 {
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            font-size: 1.3rem;
+        }
+
+        .date-inputs {
             display: flex;
-            justify-content: space-between;
-            font-size: 0.8rem;
-            opacity: 0.8;
-            margin-top: 5px;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: center;
         }
 
-        .live-indicator {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            background: #ff6b6b;
-            border-radius: 50%;
-            margin-right: 8px;
-            animation: pulse 2s infinite;
+        .date-input {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--text-primary);
+            font-size: 1rem;
         }
 
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
+        .date-input:focus {
+            outline: none;
+            border-color: var(--accent-green);
+            box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.1);
         }
 
-        .no-track {
+        /* Statistics Dashboard */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 32px 24px;
             text-align: center;
-            padding: 30px 20px;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
         }
 
-        .no-track .icon {
-            font-size: 2rem;
-            margin-bottom: 10px;
-            opacity: 0.6;
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-green), #1ed760);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--shadow-hover);
+            border-color: var(--accent-green);
+        }
+
+        .stat-icon {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+            opacity: 0.8;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--accent-green);
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        /* Now Playing Section */
+        .now-playing-section {
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 40px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .now-playing-section h3 {
+            margin-bottom: 30px;
+            font-size: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .now-playing-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .now-playing.playing {
+            background: linear-gradient(135deg, var(--accent-green) 0%, #1ed760 100%);
+            color: var(--text-primary);
+            border-radius: 20px;
+            padding: 40px;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .now-playing.not-playing {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border-radius: 20px;
+            padding: 60px 40px;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .album-art {
+            width: 200px;
+            height: 200px;
+            border-radius: 20px;
+            margin: 0 auto 24px;
+            object-fit: cover;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s ease;
+        }
+
+        .now-playing.playing .album-art:hover {
+            transform: scale(1.05);
+        }
+
+        .track-details h4 {
+            margin-bottom: 12px;
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        .track-details p {
+            margin-bottom: 8px;
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .progress-container {
+            width: 100%;
+            background: rgba(255,255,255,0.2);
+            border-radius: 12px;
+            margin: 24px 0;
+            overflow: hidden;
+            height: 8px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--text-primary);
+            border-radius: 12px;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 12px;
+            height: 12px;
+            background: var(--text-primary);
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        }
+
+        .time-display {
+            font-size: 1rem;
+            opacity: 0.8;
+            margin-top: 16px;
+            font-weight: 500;
+        }
+
+        /* Main Content Grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Frequency Tracker */
+        .frequency-tracker {
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            padding: 32px;
+            border: 1px solid var(--border-color);
+        }
+
+        .frequency-tracker h3 {
+            margin-bottom: 24px;
+            font-size: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .frequency-chart {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 24px;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+        }
+
+        /* Most Played Songs */
+        .most-played {
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            padding: 32px;
+            border: 1px solid var(--border-color);
+        }
+
+        .most-played h3 {
+            margin-bottom: 24px;
+            font-size: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .songs-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .song-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            border-radius: 12px;
+            transition: background-color 0.2s ease;
+            cursor: pointer;
+        }
+
+        .song-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .song-rank {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-green);
+            min-width: 40px;
+        }
+
+        .song-cover {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+
+        .song-info {
+            flex: 1;
+        }
+
+        .song-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .song-artist {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .song-count {
+            background: var(--accent-green);
+            color: var(--text-primary);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        /* Empty States */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state .icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-state p {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+        }
+
+        /* Messages */
+        .message {
+            padding: 16px 24px;
+            border-radius: 12px;
+            margin: 20px 0;
+            text-align: center;
+            font-weight: 600;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.success {
+            background: rgba(29, 185, 84, 0.1);
+            color: var(--accent-green);
+            border: 1px solid rgba(29, 185, 84, 0.3);
+        }
+
+        .message.error {
+            background: rgba(231, 76, 60, 0.1);
+            color: #e74c3c;
+            border: 1px solid rgba(231, 76, 60, 0.3);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2.5rem;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .date-inputs {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .now-playing-section {
+                padding: 24px;
+            }
+            
+            .album-art {
+                width: 150px;
+                height: 150px;
+            }
+        }
+
+        /* Scrollbar Styling */
+        .songs-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .songs-list::-webkit-scrollbar-track {
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+
+        .songs-list::-webkit-scrollbar-thumb {
+            background: var(--accent-green);
+            border-radius: 4px;
+        }
+
+        .songs-list::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-green-hover);
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Header -->
         <div class="header">
-            <h1>🎵 AutoPlay - Music Tracker</h1>
-            <p>Track your listening habits and discover your favorite songs</p>
+            <h1>🎵 AutoPlay</h1>
+            <p>Your Spotify Music Analytics Dashboard</p>
         </div>
 
-        <div class="content">
-            <!-- Controls -->
-            <div class="card">
-                <h3>🔄 Data Controls</h3>
-                <div class="controls">
-                    <button class="btn btn-primary" onclick="startScheduler()">Start Auto-Tracking</button>
-                    <button class="btn btn-danger" onclick="stopScheduler()">Stop Auto-Tracking</button>
-                    <button class="btn btn-secondary" onclick="runNow()">Fetch Recent Tracks</button>
-                    <button class="btn btn-secondary" onclick="refreshData()">Refresh Data</button>
-                </div>
-                <div id="schedulerStatus">
-                    <span class="status-indicator status-stopped"></span>
-                    <span>Auto-Tracking Status: Loading...</span>
-                </div>
+        <!-- Controls -->
+        <div class="controls">
+            <button class="btn btn-primary" onclick="fetchRecentTracks()">
+                📥 Fetch Recent Tracks
+            </button>
+            <button class="btn btn-secondary" onclick="refreshData()">
+                🔄 Refresh Data
+            </button>
+            <button class="btn btn-primary" onclick="startScheduler()">
+                🚀 Start Scheduler
+            </button>
+            <button class="btn btn-danger" onclick="stopScheduler()">
+                ⏹️ Stop Scheduler
+            </button>
+            <button class="btn btn-secondary" onclick="runSchedulerNow()">
+                ⚡ Run Now
+            </button>
+        </div>
+
+        <!-- Date Range Selector -->
+        <div class="date-selector">
+            <h3>📅 Select Date Range</h3>
+            <div class="date-inputs">
+                <input type="date" id="startDate" class="date-input" onchange="updateDateRange()">
+                <span style="color: var(--text-secondary);">to</span>
+                <input type="date" id="endDate" class="date-input" onchange="updateDateRange()">
+                <button class="btn btn-primary" onclick="applyDateRange()">
+                    Apply Range
+                </button>
             </div>
+        </div>
 
-            <!-- Statistics -->
-            <div class="grid">
-                <div class="card">
-                    <h3>📊 Listening Overview</h3>
-                    <div class="stats">
-                        <div class="stat">
-                            <div class="stat-number" id="totalTracks">-</div>
-                            <div class="stat-label">Unique Tracks</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-number" id="totalPlays">-</div>
-                            <div class="stat-label">Total Plays</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-number" id="frequentTracks">-</div>
-                            <div class="stat-label">Frequent Tracks</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Currently Playing Card -->
-                <div class="card" id="currentlyPlayingCard">
-                    <h3>🎵 Now Playing</h3>
-                    <div id="currentlyPlayingContent">
-                        <div class="loading">Loading current track...</div>
-                    </div>
-                </div>
+        <!-- Statistics Dashboard -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">🎵</div>
+                <div class="stat-number" id="totalTracks">-</div>
+                <div class="stat-label">Unique Tracks</div>
             </div>
-
-            <!-- Frequent Tracks -->
-            <div class="card">
-                <h3 class="section-title">🎯 Your Most Played Tracks</h3>
-                <div id="frequentTracksList" class="track-list">
-                    <div class="loading">Loading your favorite tracks...</div>
-                </div>
+            <div class="stat-card">
+                <div class="stat-icon">⏱️</div>
+                <div class="stat-number" id="totalTime">-</div>
+                <div class="stat-label">Total Time</div>
             </div>
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-number" id="totalPlays">-</div>
+                <div class="stat-label">Total Plays</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🎯</div>
+                <div class="stat-number" id="frequentTracks">-</div>
+                <div class="stat-label">Frequent Tracks</div>
+            </div>
+        </div>
 
-            <!-- Top Tracks -->
-            <div class="card">
-                <h3 class="section-title">🏆 All Time Top Tracks</h3>
-                <div id="topTracksList" class="track-list">
-                    <div class="loading">Loading your top tracks...</div>
+        <!-- Now Playing Section -->
+        <div class="now-playing-section">
+            <h3>🎵 Now Playing</h3>
+            <div id="currentlyPlayingContent">
+                <div class="now-playing not-playing">
+                    <div class="icon">🎵</div>
+                    <p>Loading current track...</p>
                 </div>
             </div>
         </div>
+
+        <!-- Main Content Grid -->
+        <div class="main-grid">
+            <!-- Frequency Tracker -->
+            <div class="frequency-tracker">
+                <h3>📈 Frequency Tracker</h3>
+                <div id="frequencyChart" class="frequency-chart">
+                    <div class="empty-state">
+                        <div class="icon">📊</div>
+                        <p>No frequency data available</p>
+                        <p>Fetch recent tracks to see your listening patterns</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Most Played Songs -->
+            <div class="most-played">
+                <h3>🏆 Most Played Songs</h3>
+                <div id="mostPlayedList" class="songs-list">
+                    <div class="empty-state">
+                        <div class="icon">🎵</div>
+                        <p>No songs found yet</p>
+                        <p>Fetch recent tracks to see your top songs</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Message Display -->
+        <div id="messageContainer"></div>
     </div>
 
     <script>
-        const API_BASE = window.location.origin;
+        // Set default date range (last 30 days)
+        function setDefaultDateRange() {
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 30);
+            
+            document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+            document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
+        }
 
+        // Update date range
+        function updateDateRange() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (startDate && endDate && startDate > endDate) {
+                showMessage('Start date cannot be after end date', 'error');
+                return false;
+            }
+            return true;
+        }
+
+        // Apply date range filter
+        function applyDateRange() {
+            if (updateDateRange()) {
+                showMessage('Date range applied! Refreshing data...', 'success');
+                refreshData();
+            }
+        }
+
+        // Fetch data from API
         async function fetchData(endpoint) {
             try {
-                const response = await fetch(`${API_BASE}${endpoint}`);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const response = await fetch(endpoint);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 return await response.json();
             } catch (error) {
                 console.error('Error fetching data:', error);
@@ -411,30 +712,20 @@
             }
         }
 
-        async function updateSchedulerStatus() {
+        // Fetch recent tracks
+        async function fetchRecentTracks() {
             try {
-                const status = await fetchData('/scheduler/status');
-                const statusElement = document.getElementById('schedulerStatus');
-                const indicator = statusElement.querySelector('.status-indicator');
-                
-                if (status.isRunning) {
-                    indicator.className = 'status-indicator status-running';
-                    statusElement.innerHTML = `
-                        <span class="status-indicator status-running"></span>
-                        <span>Auto-Tracking Status: Running</span>
-                    `;
-                } else {
-                    indicator.className = 'status-indicator status-stopped';
-                    statusElement.innerHTML = `
-                        <span class="status-indicator status-stopped"></span>
-                        <span>Auto-Tracking Status: Stopped</span>
-                    `;
-                }
+                showMessage('Fetching recent tracks...', 'success');
+                const result = await fetchData('/recent');
+                showMessage(result, 'success');
+                await updateAnalytics();
+                await updateCurrentlyPlaying();
             } catch (error) {
-                console.error('Error updating scheduler status:', error);
+                showMessage('Failed to fetch recent tracks: ' + error.message, 'error');
             }
         }
 
+        // Update currently playing
         async function updateCurrentlyPlaying() {
             try {
                 const currentTrack = await fetchData('/currently-playing');
@@ -445,54 +736,50 @@
                     const progressPercent = track.progressPercent || 0;
                     
                     contentElement.innerHTML = `
-                        <div class="now-playing playing">
-                            <img src="${track.albumArt || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCIgdmlld0JveD0iMCAwIDEyMCAxMjAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iMTIwIiBmaWxsPSIjZmZmZmZmIi8+CjxwYXRoIGQ9Ik02MCAzMEM2MCAyNi44NTg2IDYyLjg1ODYgMjQgNjYgMjRIMTQwQzE0My4xNDIgMjQgMTQ2IDI2Ljg1ODYgMTQ2IDMwVjkwQzE0NiA5My4xNDE0IDE0My4xNDIgOTYgMTQwIDk2SDY2QzYyLjg1ODYgOTYgNjAgOTMuMTQxNCA2MCA5MFYzMFoiIGZpbGw9IiMxZGI5NTQiLz4KPHBhdGggZD0iTTYwIDQwQzYwIDM2Ljg1ODYgNjIuODU4NiAzNCA2NiAzNEgxMDBDMTAzLjE0MiAzNCAxMDYgMzYuODU4NiAxMDYgNDBWNzBDMTA2IDczLjE0MTQgMTAzLjE0MiA3NiAxMDAgNzZINjZDNjIuODU4NiA3NiA2MCA3My4xNDE0IDYwIDcwVjQwWiIgZmlsbD0iIzFlZDc2MCIvPgo8L3N2Zz4K'}" alt="Album Art" class="album-art">
-                            <div class="track-title">${track.name}</div>
-                            <div class="track-artist">${track.artist}</div>
-                            <div class="track-album">${track.album}</div>
-                            <div class="progress-container">
-                                <div class="progress-bar" style="width: ${progressPercent}%"></div>
-                            </div>
-                            <div class="time-info">
-                                <span>${formatTime(track.progress)}</span>
-                                <span>${formatTime(track.duration)}</span>
+                        <div class="now-playing-content">
+                            <div class="now-playing playing">
+                                <img src="${track.albumArt || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjZmZmZmZmIi8+CjxwYXRoIGQ9Ik0xMDAgNTBDMTAwIDQ0Ljc3MTUgMTA0Ljc3MSA0MCAxMTAgNDBIMTgwQzE4NS4yMjkgNDAgMTkwIDQ0Ljc3MTUgMTkwIDUwVjE1MEMxOTAgMTU1LjIyOSAxODUuMjI5IDE2MCAxODAgMTYwSDExMEMxMDQuNzcxIDE2MCAxMDAgMTU1LjIyOSAxMDAgMTUwVjUwWiIgZmlsbD0iIzFkYjk1NCIvPgo8L3N2Zz4='}" alt="Album Art" class="album-art">
+                                <div class="track-details">
+                                    <h4>${track.name}</h4>
+                                    <p>${track.artist}</p>
+                                    <p>${track.album}</p>
+                                </div>
+                                <div class="progress-container">
+                                    <div class="progress-bar" style="width: ${progressPercent}%"></div>
+                                </div>
+                                <div class="time-display">
+                                    ${formatTime(track.progress)} / ${formatTime(track.duration)}
+                                </div>
                             </div>
                         </div>
                     `;
                 } else {
                     contentElement.innerHTML = `
-                        <div class="now-playing not-playing">
-                            <div class="no-track">
+                        <div class="now-playing-content">
+                            <div class="now-playing not-playing">
                                 <div class="icon">🎵</div>
-                                <div>${currentTrack.message || 'No track currently playing'}</div>
-                                <div style="font-size: 0.9rem; margin-top: 10px;">Start playing music on Spotify to see it here!</div>
+                                <p>${currentTrack.message || 'No track currently playing'}</p>
+                                <p>Start playing music on Spotify to see it here!</p>
                             </div>
                         </div>
                     `;
                 }
             } catch (error) {
                 console.error('Error updating currently playing:', error);
-                
-                // Check if it's an authentication error
-                if (error.error === 'Authentication required') {
-                    contentElement.innerHTML = `
+                const contentElement = document.getElementById('currentlyPlayingContent');
+                contentElement.innerHTML = `
+                    <div class="now-playing-content">
                         <div class="now-playing not-playing">
-                            <div class="no-track">
-                                <div class="icon">🔐</div>
-                                <div>Authentication Required</div>
-                                <div style="font-size: 0.9rem; margin-top: 10px;">Your Spotify session has expired</div>
-                                <button class="btn btn-primary" style="margin-top: 15px;" onclick="window.location.href='/login'">
-                                    🔑 Re-authenticate with Spotify
-                                </button>
-                            </div>
+                            <div class="icon">⚠️</div>
+                            <p>Error loading current track</p>
+                            <p>${error.message}</p>
                         </div>
-                    `;
-                } else {
-                    contentElement.innerHTML = '<div class="error">Error loading current track</div>';
-                }
+                    </div>
+                `;
             }
         }
 
+        // Format time in MM:SS
         function formatTime(ms) {
             if (!ms) return '0:00';
             const minutes = Math.floor(ms / 60000);
@@ -500,6 +787,7 @@
             return `${minutes}:${seconds.toString().padStart(2, '0')}`;
         }
 
+        // Update analytics
         async function updateAnalytics() {
             try {
                 const analytics = await fetchData('/analytics');
@@ -508,105 +796,145 @@
                 document.getElementById('totalTracks').textContent = analytics.totalTracksPlayed;
                 document.getElementById('totalPlays').textContent = analytics.totalPlayEvents;
                 document.getElementById('frequentTracks').textContent = analytics.frequentTracks.length;
-
-                // Update frequent tracks
-                const frequentList = document.getElementById('frequentTracksList');
-                if (analytics.frequentTracks.length === 0) {
-                    frequentList.innerHTML = `
-                        <div class="empty-state">
-                            <div class="icon">🎵</div>
-                            <div>No frequent tracks found yet</div>
-                            <div style="font-size: 0.9rem; margin-top: 10px;">Start listening to see your favorites here!</div>
-                        </div>
-                    `;
-                } else {
-                    frequentList.innerHTML = analytics.frequentTracks.map(track => `
-                        <div class="track-item">
-                            <div class="track-info">
-                                <div class="track-name">${track.track_name}</div>
-                                <div class="track-artist">${track.artist}</div>
-                            </div>
-                            <div class="track-count">${track.count} plays</div>
-                        </div>
-                    `).join('');
-                }
-
-                // Update top tracks
-                const topList = document.getElementById('topTracksList');
-                if (analytics.topTracks.length === 0) {
-                    topList.innerHTML = `
-                        <div class="empty-state">
-                            <div class="icon">🎵</div>
-                            <div>No tracks found yet</div>
-                            <div style="font-size: 0.9rem; margin-top: 10px;">Start listening to build your music history!</div>
-                        </div>
-                    `;
-                } else {
-                    topList.innerHTML = analytics.topTracks.map(track => `
-                        <div class="track-item">
-                            <div class="track-info">
-                                <div class="track-name">Track ID: ${track.track_id}</div>
-                                <div class="track-artist">Last played: ${new Date(track.lastPlayed).toLocaleDateString()}</div>
-                            </div>
-                            <div class="track-count">${track.count} plays</div>
-                        </div>
-                    `).join('');
-                }
-
+                
+                // Calculate total time (estimate: 3.5 minutes per track)
+                const estimatedTime = Math.round(analytics.totalPlayEvents * 3.5);
+                const hours = Math.floor(estimatedTime / 60);
+                const minutes = estimatedTime % 60;
+                document.getElementById('totalTime').textContent = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+                
+                // Update most played songs
+                updateMostPlayedSongs(analytics.frequentTracks);
+                
+                // Update frequency chart
+                updateFrequencyChart(analytics.frequentTracks);
+                
             } catch (error) {
                 console.error('Error updating analytics:', error);
-                document.getElementById('frequentTracksList').innerHTML = '<div class="error">Error loading data</div>';
-                document.getElementById('topTracksList').innerHTML = '<div class="error">Error loading data</div>';
+                showMessage('Failed to update analytics: ' + error.message, 'error');
             }
         }
 
+        // Update most played songs list
+        function updateMostPlayedSongs(songs) {
+            const mostPlayedList = document.getElementById('mostPlayedList');
+            
+            if (!songs || songs.length === 0) {
+                mostPlayedList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">🎵</div>
+                        <p>No songs found yet</p>
+                        <p>Fetch recent tracks to see your top songs</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            mostPlayedList.innerHTML = songs.map((song, index) => `
+                <div class="song-item">
+                    <div class="song-rank">${index + 1}</div>
+                    <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjYwIiBoZWlnaHQ9IjYwIiBmaWxsPSIjMjgyODI4Ii8+CjxwYXRoIGQ9Ik0zMCAxNUMzMCAxMy4zNDMxIDMxLjM0MzEgMTIgMzMgMTJIMTQwQzE0MS42NTcgMTIgMTQzIDEzLjM0MzEgMTQzIDE1VjQ1QzE0MyA0Ni42NTY5IDE0MS42NTcgNDggMTQwIDQ4SDMzQzMxLjM0MzEgNDggMzAgNDYuNjU2OSAzMCA0NVYxNVoiIGZpbGw9IiMxZGI5NTQiLz4KPC9zdmc+" alt="Album Cover" class="song-cover">
+                    <div class="song-info">
+                        <div class="song-name">${song.track_name}</div>
+                        <div class="song-artist">${song.artist}</div>
+                    </div>
+                    <div class="song-count">${song.count} plays</div>
+                </div>
+            `).join('');
+        }
+
+        // Update frequency chart
+        function updateFrequencyChart(songs) {
+            const frequencyChart = document.getElementById('frequencyChart');
+            
+            if (!songs || songs.length === 0) {
+                frequencyChart.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">📊</div>
+                        <p>No frequency data available</p>
+                        <p>Fetch recent tracks to see your listening patterns</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Create a simple bar chart visualization
+            const maxPlays = Math.max(...songs.map(s => s.count));
+            const chartHTML = songs.slice(0, 8).map(song => {
+                const barHeight = (song.count / maxPlays) * 200;
+                return `
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1;">
+                        <div style="width: 20px; height: ${barHeight}px; background: var(--accent-green); border-radius: 4px; transition: all 0.3s ease;"></div>
+                        <div style="font-size: 0.7rem; color: var(--text-secondary); text-align: center; writing-mode: vertical-rl; transform: rotate(180deg);">
+                            ${song.track_name.substring(0, 15)}${song.track_name.length > 15 ? '...' : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            frequencyChart.innerHTML = `
+                <div style="display: flex; align-items: end; justify-content: space-around; width: 100%; height: 100%; padding: 20px;">
+                    ${chartHTML}
+                </div>
+            `;
+        }
+
+        // Scheduler functions
         async function startScheduler() {
             try {
-                await fetch(`${API_BASE}/scheduler/start`);
-                await updateSchedulerStatus();
-                showMessage('Auto-tracking started successfully!', 'success');
+                const interval = prompt('Enter interval in minutes (default: 30):', '30');
+                const result = await fetchData(`/scheduler/start?interval=${interval || 30}`);
+                showMessage(result, 'success');
             } catch (error) {
-                showMessage('Failed to start auto-tracking', 'error');
+                showMessage('Failed to start scheduler: ' + error.message, 'error');
             }
         }
 
         async function stopScheduler() {
             try {
-                await fetch(`${API_BASE}/scheduler/stop`);
-                await updateSchedulerStatus();
-                showMessage('Auto-tracking stopped successfully!', 'success');
+                const result = await fetchData('/scheduler/stop');
+                showMessage(result, 'success');
             } catch (error) {
-                showMessage('Failed to stop auto-tracking', 'error');
+                showMessage('Failed to stop scheduler: ' + error.message, 'error');
             }
         }
 
-        async function runNow() {
+        async function runSchedulerNow() {
             try {
-                await fetch(`${API_BASE}/scheduler/run-now`);
-                showMessage('Recent tracks fetched successfully!', 'success');
-                setTimeout(updateAnalytics, 2000); // Refresh data after 2 seconds
+                const result = await fetchData('/scheduler/run-now');
+                showMessage(result, 'success');
+                await updateAnalytics();
             } catch (error) {
-                showMessage('Failed to fetch recent tracks', 'error');
+                showMessage('Failed to run scheduler: ' + error.message, 'error');
             }
         }
 
         async function refreshData() {
             await updateAnalytics();
-            await updateSchedulerStatus();
             await updateCurrentlyPlaying();
             showMessage('Data refreshed!', 'success');
         }
 
-
-
-        function showMessage(message, type) {
-            // Simple message display - you could enhance this with a proper toast system
-            console.log(`${type.toUpperCase()}: ${message}`);
+        // Show message
+        function showMessage(message, type = 'success') {
+            const container = document.getElementById('messageContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = message;
+            
+            container.appendChild(messageDiv);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (messageDiv.parentNode) {
+                    messageDiv.parentNode.removeChild(messageDiv);
+                }
+            }, 5000);
         }
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', async () => {
-            await updateSchedulerStatus();
+            setDefaultDateRange();
             await updateAnalytics();
             await updateCurrentlyPlaying();
             

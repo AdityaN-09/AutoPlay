@@ -313,12 +313,19 @@ const scheduler = new AutoPlayScheduler();
 app.get('/scheduler/start', (req, res) => {
   const interval = parseInt(req.query.interval) || 30; // default 30 minutes
   scheduler.start(interval);
-  res.send(`✅ Scheduler started (runs every ${interval} minutes)`);
+  res.json({
+    success: true,
+    message: `✅ Scheduler started (runs every ${interval} minutes)`,
+    interval: interval
+  });
 });
 
 app.get('/scheduler/stop', (req, res) => {
   scheduler.stop();
-  res.send('⏹️ Scheduler stopped');
+  res.json({
+    success: true,
+    message: '⏹️ Scheduler stopped'
+  });
 });
 
 app.get('/scheduler/status', (req, res) => {
@@ -328,8 +335,15 @@ app.get('/scheduler/status', (req, res) => {
 app.get('/scheduler/run-now', async (req, res) => {
   try {
     await scheduler.fetchAndProcessRecentTracks();
-    res.send('✅ Manual run completed');
+    res.json({
+      success: true,
+      message: '✅ Manual run completed'
+    });
   } catch (error) {
-    res.status(500).send('Failed to run manual task');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to run manual task',
+      message: error.message
+    });
   }
 });
